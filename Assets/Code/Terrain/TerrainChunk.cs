@@ -11,7 +11,7 @@ public class TerrainChunk : MonoBehaviour
     public int x;
     public int z;
     public int size;
-    public TerrainTile terrainTilePrefab;
+    public TerrainLayer terrainLayerPrefab;
     MeshFilter meshFilter;
     Mesh mesh;
     Terrain terrainData;
@@ -84,10 +84,10 @@ public class TerrainChunk : MonoBehaviour
     void OnDrawGizmosSelected()
     {
         Vector3 position = transform.position;
-        position += new Vector3(size * 0.5f, 0f, size * 0.5f);
+        position += new Vector3(size / 2, terrainData.height / 2, size / 2);
 
         Gizmos.color = Color.yellow;
-        Gizmos.DrawWireCube(position, new Vector3(size, 1, size));
+        Gizmos.DrawWireCube(position, new Vector3(size, terrainData.height, size));
     }
 }
 

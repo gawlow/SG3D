@@ -4,10 +4,8 @@ using UnityEngine;
 
 namespace SG3D {
 
-public class TerrainTile : MonoBehaviour
+public class TerrainLayer : MonoBehaviour
 {
-    public int x;
-    public int z;
     public int y;
     new public BoxCollider collider;
 }

@@ -6,7 +6,7 @@ namespace SG3D {
 
 public class TerrainRenderer : MonoBehaviour
 {
-    public delegate void OnTileClick(TerrainTile tileInfo);
+    public delegate void OnTileClick(int x, int z, int y);
 
     public event OnTileClick tileClicked;
 
@@ -14,12 +14,12 @@ public class TerrainRenderer : MonoBehaviour
     public float tileDepth = 1f;
     public float tileHeight = 1f;
 
-    public TerrainTile terrainTilePrefab;
+    public TerrainLayer terrainLayerPrefab;
     public TerrainChunk terrainChunkPrefab;
     public int chunkSize = 10;
 
     Mesh mesh;
-    TerrainTile[] tiles;
+    TerrainLayer[] tiles;
     TerrainChunk[] chunks;
     Terrain terrainData;
 
@@ -62,36 +62,22 @@ public class TerrainRenderer : MonoBehaviour
         return width * depth;
     }
 
-    public void CreateWorldTiles()
+    public void CreateLevelColliders()
     {
-        float t = Time.realtimeSinceStartup;
-
-        tiles = new TerrainTile[terrainData.GetArraySize()];
+        tiles = new TerrainLayer[terrainData.height];
 
         for (int y = 0; y < terrainData.height; y++) {
-            for (int x = 0; x < terrainData.width; x++) {
-                for (int z = 0; z < terrainData.depth; z++) {
-                    TerrainTile tile = Instantiate<TerrainTile>(terrainTilePrefab,  this.transform);
-                    tile.transform.localPosition = new Vector3(x * tileWidth, y * tileHeight, z * tileDepth);
-                    tile.transform.localRotation = Quaternion.identity;
-                    tile.name = $"Tile {x}/{z}/{y}";
+            TerrainLayer layer = Instantiate<TerrainLayer>(terrainLayerPrefab, this.transform);
+            layer.transform.localPosition = new Vector3(0f, y * tileHeight, 0f);
+            layer.transform.localRotation = Quaternion.identity;
+            layer.name = $"Terrain collider - layer {y}";
+            layer.collider = layer.GetComponent<BoxCollider>();
+            layer.collider.center = new Vector3(terrainData.width * tileWidth / 2, tileHeight / 2, terrainData.depth * tileDepth / 2);
+            layer.collider.size = new Vector3(terrainData.width * tileWidth, tileHeight, terrainData.depth * tileDepth);
+            layer.y = y;
 
-                    tile.x = x;
-                    tile.z = z;
-                    tile.y = y;
-
-                    tile.collider = tile.gameObject.GetComponent<BoxCollider>();
-                    tile.collider.center = new Vector3(0.5f, 0.5f, 0.5f);
-                    tile.collider.size = new Vector3(tileWidth, tileHeight, tileDepth);
-                    if (!terrainData.IsFilled(x, z, y))
-                        tile.collider.enabled = false;
-
-                    tiles[terrainData.GetArrayIndex(x, z, y)] = tile;
-                }
-            }
+            tiles[y] = layer;
         }
-
-        Debug.Log($"Create world tiles took {Time.realtimeSinceStartup - t}s. Created {tiles.Length} tiles");
     }
 
     public void UpdateWorldMesh()
@@ -106,16 +92,39 @@ public class TerrainRenderer : MonoBehaviour
         chunks[GetChunkIndex(x / chunkSize, z / chunkSize)].UpdateMesh();
     }
 
+    public Vector3Int WorldToTileCoordinates(Vector3 position)
+    {
+        return new Vector3Int(Mathf.RoundToInt(position.x / tileWidth), Mathf.RoundToInt(position.y / tileHeight), Mathf.RoundToInt(position.z / tileDepth));
+    }
+
     void Update()
     {
         if (Input.GetMouseButtonDown(0)) {
-            RaycastHit hit;
             Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-            if (Physics.Raycast(ray, out hit, 100f)) {
-                TerrainTile tileInfo = hit.collider.GetComponent<TerrainTile>();
-                if (tileInfo)
-                    tileClicked?.Invoke(tileInfo);
+            RaycastHit[] hits = Physics.RaycastAll(ray, 100f);
+
+            Vector3Int? highest = null;
+            for (int i = 0, max = hits.Length; i < max; i++) {
+                // hits order is undefined, so little mess here
+                TerrainLayer layer = hits[i].collider.GetComponent<TerrainLayer>();
+                if (!layer)
+                    continue;
+
+                Vector3Int tile = WorldToTileCoordinates(hits[i].point);
+
+                // We could try to read 'y' from hit coordinates, but boundaries between layers are shaky. 
+                // Better be safe and read it from collider itself
+                tile.y = layer.y;
+
+                if (terrainData.IsFilled(tile.x, tile.z, tile.y)) {
+                    if (!highest.HasValue || layer.y > highest.Value.y) {
+                        highest = tile;
+                    }
+                }
             }
+
+            if (highest.HasValue)
+                tileClicked?.Invoke(highest.Value.x, highest.Value.z, highest.Value.y);
         }
     }
 }
