@@ -27,12 +27,21 @@ public class TerrainGenerator : MonoBehaviour
         terrain.SetFilled(false, 0, 1, 0);
         terrain.SetFilled(false, 0, 2, 0);
 
-        terrainRenderer.CreateWorldMesh(terrain);
         terrainRenderer.CreateWorldTiles(terrain);
-        terrainRenderer.UpdateWorld(terrain, meshFilter);
+        terrainRenderer.UpdateWorldMesh(terrain, meshFilter);
+        terrainRenderer.tileClicked += OnTileClicked;
     }
 
-    void Update()
-    {
+    void OnDestroy() {
+        // Required for NativeArray cleanup
+        terrainRenderer.tileClicked -= OnTileClicked;
+        terrain.Cleanup();
+    }
+
+    public void OnTileClicked(TerrainTile tileInfo) {
+        tileInfo.collider.enabled = false;
+
+        terrain.SetFilled(false, tileInfo.x, tileInfo.z, tileInfo.y);
+        terrainRenderer.UpdateWorldMesh(terrain, meshFilter);
     }
 }

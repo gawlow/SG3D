@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using Unity.Collections;
 
 namespace SG3D {
 
@@ -15,14 +16,19 @@ public class Terrain
     public int depth;  // z-axis
     public int height;  // y-axis
 
-    bool[] filled;
+    NativeArray<bool> filled;
 
     public void Generate(int width, int depth, int height) {
         this.width = width;
         this.depth = depth;
         this.height = height;
 
-        filled = new bool[width * depth * height];
+        filled = new NativeArray<bool>(width * depth * height, Allocator.Persistent);
+    }
+
+    public void Cleanup()
+    {
+        filled.Dispose();
     }
 
     public void SetFilled(bool value)

@@ -6,7 +6,7 @@ namespace SG3D {
 
 public class TerrainRenderer : MonoBehaviour
 {
-    public delegate void OnTileClick(TerrainTile tile);
+    public delegate void OnTileClick(TerrainTile tileInfo);
 
     public event OnTileClick tileClicked;
 
@@ -58,11 +58,12 @@ public class TerrainRenderer : MonoBehaviour
             }
         }
 
-        mesh.vertices = vertices;
-        mesh.triangles = triangles;
+        mesh.Clear();
+        mesh.SetVertices(vertices, 0, i);
+        mesh.SetTriangles(triangles, 0, j, 0);
         mesh.RecalculateNormals();
 
-        Debug.Log($"Create world mesh took {Time.realtimeSinceStartup - t}s. Created {vertices.Length} vertices and {triangles.Length} indexes");
+        Debug.Log($"Create world mesh took {Time.realtimeSinceStartup - t}s. Created {i} vertices and {j} indexes");
     }
 
     public void CreateWorldTiles(Terrain terrain)
@@ -102,10 +103,10 @@ public class TerrainRenderer : MonoBehaviour
         return tiles[terrain.GetArrayIndex(x, z, y)];
     }
 
-    public void UpdateWorld(Terrain terrain, MeshFilter meshFilter)
+    public void UpdateWorldMesh(Terrain terrain, MeshFilter meshFilter)
     {
+        CreateWorldMesh(terrain);
         meshFilter.mesh = mesh;
-
     }
 
     void Update()
@@ -114,9 +115,9 @@ public class TerrainRenderer : MonoBehaviour
             RaycastHit hit;
             Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
             if (Physics.Raycast(ray, out hit, 100f)) {
-                TerrainTile tile = hit.collider.GetComponent<TerrainTile>();
-                if (tile)
-                    tileClicked?.Invoke(tile);
+                TerrainTile tileInfo = hit.collider.GetComponent<TerrainTile>();
+                if (tileInfo)
+                    tileClicked?.Invoke(tileInfo);
             }
         }
     }
