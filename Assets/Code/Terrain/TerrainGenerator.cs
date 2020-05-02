@@ -2,11 +2,14 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+namespace SG3D {
+
 [RequireComponent(typeof(SG3D.TerrainRenderer))]
 [RequireComponent(typeof(MeshFilter))]
 [RequireComponent(typeof(MeshRenderer))]
 public class TerrainGenerator : MonoBehaviour
 {
+
     SG3D.Terrain terrain;
     SG3D.TerrainRenderer terrainRenderer;
 
@@ -17,18 +20,22 @@ public class TerrainGenerator : MonoBehaviour
         meshFilter = GetComponent<MeshFilter>();
         terrainRenderer = GetComponent<SG3D.TerrainRenderer>();
         terrain = new SG3D.Terrain();
+        terrainRenderer.Initialise(terrain);
     }
 
     // Start is called before the first frame update
     void Start()
     {
-        terrain.Generate(20, 20, 2);
+        terrain.Generate(100, 100, 1);
         terrain.SetFilled(true);
         terrain.SetFilled(false, 0, 1, 0);
         terrain.SetFilled(false, 0, 2, 0);
 
-        terrainRenderer.CreateWorldTiles(terrain);
-        terrainRenderer.UpdateWorldMesh(terrain, meshFilter);
+        int chunks = terrainRenderer.CreateWorldMesh();
+        Debug.Log($"Created {chunks} terrain chunks");
+
+        terrainRenderer.CreateWorldTiles();
+        terrainRenderer.UpdateWorldMesh();
         terrainRenderer.tileClicked += OnTileClicked;
     }
 
@@ -42,6 +49,8 @@ public class TerrainGenerator : MonoBehaviour
         tileInfo.collider.enabled = false;
 
         terrain.SetFilled(false, tileInfo.x, tileInfo.z, tileInfo.y);
-        terrainRenderer.UpdateWorldMesh(terrain, meshFilter);
+        terrainRenderer.UpdateWorldMeshForTile(tileInfo.x, tileInfo.z, tileInfo.y);
     }
+}
+
 }

@@ -15,9 +15,13 @@ public class TerrainRenderer : MonoBehaviour
     public float tileHeight = 1f;
 
     public TerrainTile terrainTilePrefab;
+    public TerrainChunk terrainChunkPrefab;
+    public int chunkSize = 10;
 
     Mesh mesh;
     TerrainTile[] tiles;
+    TerrainChunk[] chunks;
+    Terrain terrainData;
 
     void Awake()
     {
@@ -25,60 +29,52 @@ public class TerrainRenderer : MonoBehaviour
         mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
     }
 
-    public void CreateWorldMesh(Terrain terrain)
+    private int GetChunkIndex(int x, int z)
     {
-        float t = Time.realtimeSinceStartup;
+        int width = (terrainData.width / chunkSize) + ((terrainData.width % chunkSize > 0) ? 1 : 0);
+        return (z * width + x);
+    }
 
-        Vector3[] vertices = new Vector3[terrain.width * terrain.depth * terrain.height * 4];
-        int[] triangles = new int[terrain.width * terrain.depth * terrain.height * 6];
-        int i = 0, j = 0;
+    public void Initialise(Terrain terrainData)
+    {
+        this.terrainData = terrainData;
+    }
 
-        // x/y/z
-        for (int y = 0; y < terrain.height; y++) {
-            for (int x = 0; x < terrain.width; x++) {
-                for (int z = 0; z < terrain.depth; z++) {
-                    if (!terrain.IsFilled(x, z, y))
-                        continue;
+    public int CreateWorldMesh()
+    {
+        int width = (terrainData.width / chunkSize) + ((terrainData.width % chunkSize > 0) ? 1 : 0);
+        int depth = (terrainData.depth / chunkSize) + ((terrainData.depth % chunkSize > 0) ? 1 : 0);
 
-                    vertices[i] = new Vector3(x * tileWidth, y * tileHeight, z * tileDepth);                                // Bottom left
-                    vertices[i + 1] = new Vector3(x * tileWidth, y * tileHeight, z * tileDepth + tileDepth);                // Top left
-                    vertices[i + 2] = new Vector3(x * tileWidth + tileWidth, y * tileHeight, z * tileDepth + tileDepth);    // Top right
-                    vertices[i + 3] = new Vector3(x * tileWidth + tileWidth, y * tileHeight, z * tileDepth);                // Bottom right
+        chunks = new TerrainChunk[width * depth];
 
-                    triangles[j] = i;
-                    triangles[j + 1] = i + 1;
-                    triangles[j + 2] = i + 2;
-                    triangles[j + 3] = i;
-                    triangles[j + 4] = i + 2;
-                    triangles[j + 5] = i + 3;
+        for (int x = 0; x < width; x++) {
+            for (int z = 0; z < depth; z++) {
+                TerrainChunk chunk = Instantiate<TerrainChunk>(terrainChunkPrefab, this.transform);
+                chunk.transform.localPosition = new Vector3(x * chunkSize, 0f, z * chunkSize);
+                chunk.transform.localRotation = Quaternion.identity;
+                chunk.name = $"Chunk {x * chunkSize}x{z * chunkSize} - {x * chunkSize + chunkSize}x{z * chunkSize + chunkSize}";
+                chunk.Initialise(terrainData, this, x, z, chunkSize);
 
-                    i += 4;
-                    j += 6;
-                }
+                chunks[GetChunkIndex(x, z)] = chunk;
             }
         }
 
-        mesh.Clear();
-        mesh.SetVertices(vertices, 0, i);
-        mesh.SetTriangles(triangles, 0, j, 0);
-        mesh.RecalculateNormals();
-
-        Debug.Log($"Create world mesh took {Time.realtimeSinceStartup - t}s. Created {i} vertices and {j} indexes");
+        return width * depth;
     }
 
-    public void CreateWorldTiles(Terrain terrain)
+    public void CreateWorldTiles()
     {
         float t = Time.realtimeSinceStartup;
 
-        tiles = new TerrainTile[terrain.GetArraySize()];
+        tiles = new TerrainTile[terrainData.GetArraySize()];
 
-        for (int y = 0; y < terrain.height; y++) {
-            for (int x = 0; x < terrain.width; x++) {
-                for (int z = 0; z < terrain.depth; z++) {
+        for (int y = 0; y < terrainData.height; y++) {
+            for (int x = 0; x < terrainData.width; x++) {
+                for (int z = 0; z < terrainData.depth; z++) {
                     TerrainTile tile = Instantiate<TerrainTile>(terrainTilePrefab,  this.transform);
                     tile.transform.localPosition = new Vector3(x * tileWidth, y * tileHeight, z * tileDepth);
                     tile.transform.localRotation = Quaternion.identity;
-                    tile.gameObject.name = $"Tile {x}/{z}/{y}";
+                    tile.name = $"Tile {x}/{z}/{y}";
 
                     tile.x = x;
                     tile.z = z;
@@ -87,10 +83,10 @@ public class TerrainRenderer : MonoBehaviour
                     tile.collider = tile.gameObject.GetComponent<BoxCollider>();
                     tile.collider.center = new Vector3(0.5f, 0.5f, 0.5f);
                     tile.collider.size = new Vector3(tileWidth, tileHeight, tileDepth);
-                    if (!terrain.IsFilled(x, z, y))
+                    if (!terrainData.IsFilled(x, z, y))
                         tile.collider.enabled = false;
 
-                    tiles[terrain.GetArrayIndex(x, z, y)] = tile;
+                    tiles[terrainData.GetArrayIndex(x, z, y)] = tile;
                 }
             }
         }
@@ -98,15 +94,16 @@ public class TerrainRenderer : MonoBehaviour
         Debug.Log($"Create world tiles took {Time.realtimeSinceStartup - t}s. Created {tiles.Length} tiles");
     }
 
-    public TerrainTile GetCollider(Terrain terrain, int x, int z, int y)
+    public void UpdateWorldMesh()
     {
-        return tiles[terrain.GetArrayIndex(x, z, y)];
+        for (int i = 0, max = chunks.Length; i < max; i++) {
+            chunks[i].UpdateMesh();
+        }
     }
 
-    public void UpdateWorldMesh(Terrain terrain, MeshFilter meshFilter)
+    public void UpdateWorldMeshForTile(int x, int z, int y)
     {
-        CreateWorldMesh(terrain);
-        meshFilter.mesh = mesh;
+        chunks[GetChunkIndex(x / chunkSize, z / chunkSize)].UpdateMesh();
     }
 
     void Update()
