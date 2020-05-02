@@ -6,16 +6,23 @@ namespace SG3D {
 
 public class TerrainRenderer : MonoBehaviour
 {
-    public int tileWidth = 1;
-    public int tileDepth = 1;
-    public int tileHeight = 1;
+    public delegate void OnTileClick(TerrainTile tile);
+
+    public event OnTileClick tileClicked;
+
+    public float tileWidth = 1f;
+    public float tileDepth = 1f;
+    public float tileHeight = 1f;
+
+    public TerrainTile terrainTilePrefab;
 
     Mesh mesh;
-    BoxCollider[] colliders;
+    TerrainTile[] tiles;
 
     void Awake()
     {
         mesh = new Mesh();
+        mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
     }
 
     public void CreateWorldMesh(Terrain terrain)
@@ -55,68 +62,66 @@ public class TerrainRenderer : MonoBehaviour
         mesh.triangles = triangles;
         mesh.RecalculateNormals();
 
-        Debug.Log($"Create world took {Time.realtimeSinceStartup - t}. Created {vertices.Length} vertices and {triangles.Length} indexes");
+        Debug.Log($"Create world mesh took {Time.realtimeSinceStartup - t}s. Created {vertices.Length} vertices and {triangles.Length} indexes");
     }
 
-    public void CreateWorldColliders(Terrain terrain)
+    public void CreateWorldTiles(Terrain terrain)
     {
-        colliders = new BoxCollider[terrain.GetArraySize()];
+        float t = Time.realtimeSinceStartup;
+
+        tiles = new TerrainTile[terrain.GetArraySize()];
 
         for (int y = 0; y < terrain.height; y++) {
             for (int x = 0; x < terrain.width; x++) {
                 for (int z = 0; z < terrain.depth; z++) {
-                    GameObject go = new GameObject($"Collider {x}/{z}/{y}");
-                    go.transform.parent = this.transform;    // Make ourself parent
-                    go.transform.position = new Vector3(x * tileWidth, y * tileHeight, z * tileDepth);
+                    TerrainTile tile = Instantiate<TerrainTile>(terrainTilePrefab,  this.transform);
+                    tile.transform.localPosition = new Vector3(x * tileWidth, y * tileHeight, z * tileDepth);
+                    tile.transform.localRotation = Quaternion.identity;
+                    tile.gameObject.name = $"Tile {x}/{z}/{y}";
 
-                    BoxCollider collider = go.AddComponent<BoxCollider>();
-                    collider.size = new Vector3(tileWidth, tileHeight, tileDepth);
-                    collider.center = new Vector3(0.5f, 0.5f, 0.5f);
+                    tile.x = x;
+                    tile.z = z;
+                    tile.y = y;
+
+                    tile.collider = tile.gameObject.GetComponent<BoxCollider>();
+                    tile.collider.center = new Vector3(0.5f, 0.5f, 0.5f);
+                    tile.collider.size = new Vector3(tileWidth, tileHeight, tileDepth);
                     if (!terrain.IsFilled(x, z, y))
-                        collider.enabled = false;
+                        tile.collider.enabled = false;
 
-                    colliders[terrain.GetArrayIndex(x, z, y)] = collider;
+                    tiles[terrain.GetArrayIndex(x, z, y)] = tile;
                 }
             }
         }
+
+        Debug.Log($"Create world tiles took {Time.realtimeSinceStartup - t}s. Created {tiles.Length} tiles");
     }
 
-    public BoxCollider GetCollider(Terrain terrain, int x, int z, int y)
+    public TerrainTile GetCollider(Terrain terrain, int x, int z, int y)
     {
-        return colliders[terrain.GetArrayIndex(x, z, y)];
+        return tiles[terrain.GetArrayIndex(x, z, y)];
     }
 
     public void UpdateWorld(Terrain terrain, MeshFilter meshFilter)
     {
         meshFilter.mesh = mesh;
-        // CombineInstance[] combine = new CombineInstance[terrain.width * terrain.depth * terrain.height];
-        // Mesh terrainMesh = cube.GetComponent<MeshFilter>().sharedMesh;
-        // Transform terrainTransform = cube.GetComponent<Transform>();
 
-        // float t = Time.realtimeSinceStartup;
+    }
 
-        // int i = 0;
-        // for (int x = 0; x < terrain.width; x++) {
-        //     for (int z = 0; z < terrain.depth; z++) {
-        //         for (int y = 0; y < terrain.height; y++) {
-        //             // combine[i].mesh = terrainMesh;
-
-        //             // terrainTransform.position = new Vector3(x, y, z);
-        //             // combine[i].transform = terrainTransform.localToWorldMatrix;
-        //             GameObject.Instantiate(terrainCube, new Vector3(x, y, z), Quaternion.identity);
-        //             i++;
-        //         }
-        //     }
-        // }
-
-        // Debug.Log($"Creating combine objects took {Time.realtimeSinceStartup - t}");
-
-        // // meshFilter.mesh = new Mesh();
-        // // meshFilter.mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
-        // // meshFilter.mesh.CombineMeshes(combine);
-        // // meshFilter.mesh.Optimize();
-
-        // Debug.Log($"Update world took {Time.realtimeSinceStartup - t}");
+    void Update()
+    {
+        if (Input.GetMouseButtonDown(0)) {
+            RaycastHit hit;
+            Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+            if (Physics.Raycast(ray, out hit, 100f)) {
+                TerrainTile tile = hit.collider.GetComponent<TerrainTile>();
+                if (tile) {
+                    Debug.Log($"You selected tile {tile.x}/{tile.z}/{tile.y}");
+                    if (tileClicked != null)
+                        tileClicked.Invoke(tile);
+                }
+            }
+        }
     }
 }
 

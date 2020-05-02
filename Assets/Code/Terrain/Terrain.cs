@@ -49,7 +49,6 @@ public class Terrain
 
     public int GetArrayIndex(int x, int z, int y)
     {
-        Debug.Log($"ArrayIndex for {x}/{z}/{y} is {(y * width * depth) + (z * width) + x}");
         return (y * width * depth) + (z * width) + x;
     }
 }
