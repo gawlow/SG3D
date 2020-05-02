@@ -115,11 +115,8 @@ public class TerrainRenderer : MonoBehaviour
             Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
             if (Physics.Raycast(ray, out hit, 100f)) {
                 TerrainTile tile = hit.collider.GetComponent<TerrainTile>();
-                if (tile) {
-                    Debug.Log($"You selected tile {tile.x}/{tile.z}/{tile.y}");
-                    if (tileClicked != null)
-                        tileClicked.Invoke(tile);
-                }
+                if (tile)
+                    tileClicked?.Invoke(tile);
             }
         }
     }
