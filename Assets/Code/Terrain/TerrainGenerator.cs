@@ -20,10 +20,10 @@ public class TerrainGenerator : MonoBehaviour
     void Start()
     {
         // Some sample terrain
-        terrain.Generate(105, 105, 2);
+        terrain.Generate(100, 100, 2);
         terrain.SetPresent(true);
-        terrain.SetPresent(new Vector3Int(1, 0, 0), false);
-        terrain.SetPresent(new Vector3Int(2, 0, 0), false);
+        // terrain.SetPresent(new Vector3Int(1, 0, 0), false);
+        // terrain.SetPresent(new Vector3Int(2, 0, 0), false);
 
         int chunks = terrainRenderer.CreateWorld();
         Debug.Log($"Created {chunks} terrain chunks");

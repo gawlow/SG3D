@@ -80,7 +80,7 @@ public class TerrainChunk : MonoBehaviour
     {
         float t = Time.realtimeSinceStartup;
 
-        int i = 0, j = 0;
+        // int i = 0, j = 0;
         vertices.Clear();
         triangles.Clear();
 
@@ -88,40 +88,190 @@ public class TerrainChunk : MonoBehaviour
         for (int y = 0; y < terrainData.terrainHeight; y++) {
             for (int x = 0; x < size; x++) {
                 for (int z = 0; z < size; z++) {
-                    if (!terrainData.IsPresent(WorldTileXPosition() + x, WorldTileZPosition() + z, y))
+                    int worldX = WorldTileXPosition() + x;
+                    int worldZ = WorldTileZPosition() + z;
+                    int worldY = y;
+
+                    if (!terrainData.IsPresent(worldX, worldZ, worldY))
                         continue;
 
-                    // Bottom left
-                    vertices.Add(new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth));
+                    if (!terrainData.IsPresent(worldX, worldZ, worldY + 1))
+                        GenerateTopWall(x, z, y);
+                    
+                    if (!terrainData.IsPresent(worldX, worldZ, worldY - 1))
+                        GenerateBottomWall(x, z, y);
 
-                    // Top left
-                    vertices.Add(new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth));
+                    if (!terrainData.IsPresent(worldX, worldZ - 1, worldY))
+                        GenerateSouthWall(x, z, y);
 
-                    // Top right
-                    vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth));
+                    if (!terrainData.IsPresent(worldX, worldZ + 1, worldY))
+                        GenerateNorthWall(x, z, y);
 
-                    // Bottom right
-                    vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth));
+                    if (!terrainData.IsPresent(worldX - 1, worldZ, worldY))
+                        GenerateWestWall(x, z, y);
 
-                    triangles.Add(i);
-                    triangles.Add(i + 1);
-                    triangles.Add(i + 2);
-                    triangles.Add(i);
-                    triangles.Add(i + 2);
-                    triangles.Add(i + 3);
-
-                    i += 4;
-                    j += 6;
+                    if (!terrainData.IsPresent(worldX + 1, worldZ, worldY))
+                        GenerateEastWall(x, z, y);
                 }
             }
         }
 
         mesh.Clear();
-        mesh.SetVertices(vertices, 0, i);
-        mesh.SetTriangles(triangles, 0, j, 0);
+        mesh.SetVertices(vertices, 0, vertices.Count);
+        mesh.SetTriangles(triangles, 0, triangles.Count, 0);
         mesh.RecalculateNormals();
         meshFilter.mesh = mesh;
     }
+
+    private void GenerateTopWall(int x, int z, int y)
+    {
+        int i = vertices.Count;
+
+        // Looking along Y axis
+        // Bottom left
+        vertices.Add(new Vector3(x * renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth));
+
+        // Top left
+        vertices.Add(new Vector3(x * renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth));
+
+        // Top right
+        vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth));
+
+        // Bottom right
+        vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth));
+
+        triangles.Add(i);
+        triangles.Add(i + 1);
+        triangles.Add(i + 2);
+        triangles.Add(i);
+        triangles.Add(i + 2);
+        triangles.Add(i + 3);
+    }
+
+    private void GenerateWestWall(int x, int z, int y)
+    {
+        int i = vertices.Count;
+
+        // Looking along X axis
+        // Bottom left
+        vertices.Add(new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth));
+
+        // Top left
+        vertices.Add(new Vector3(x * renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth));
+
+        // Top right
+        vertices.Add(new Vector3(x * renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth));
+
+        // Bottom right
+        vertices.Add(new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth));
+
+        triangles.Add(i);
+        triangles.Add(i + 1);
+        triangles.Add(i + 2);
+        triangles.Add(i);
+        triangles.Add(i + 2);
+        triangles.Add(i + 3);
+    }
+
+    private void GenerateEastWall(int x, int z, int y)
+    {
+        int i = vertices.Count;
+
+        // Looking along X axis
+        // Bottom left
+        vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth));
+
+        // Top left
+        vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth));
+
+        // Top right
+        vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth));
+
+        // Bottom right
+        vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth));
+
+        triangles.Add(i);
+        triangles.Add(i + 2);
+        triangles.Add(i + 1);
+        triangles.Add(i);
+        triangles.Add(i + 3);
+        triangles.Add(i + 2);
+    }
+
+    private void GenerateBottomWall(int x, int z, int y)
+    {
+        int i = vertices.Count;
+
+        // Looking along Y axis
+        // Bottom left
+        vertices.Add(new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth));
+
+        // Top left
+        vertices.Add(new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth));
+
+        // Top right
+        vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth));
+
+        // Bottom right
+        vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth));
+
+        triangles.Add(i);
+        triangles.Add(i + 2);
+        triangles.Add(i + 1);
+        triangles.Add(i);
+        triangles.Add(i + 3);
+        triangles.Add(i + 2);
+    }
+
+    private void GenerateSouthWall(int x, int z, int y)
+    {
+        int i = vertices.Count;
+
+        // Looking along Z axis
+        // Bottom left
+        vertices.Add(new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth));
+
+        // Top left
+        vertices.Add(new Vector3(x * renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth));
+
+        // Top right
+        vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth));
+
+        // Bottom right
+        vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth));
+
+        triangles.Add(i);
+        triangles.Add(i + 1);
+        triangles.Add(i + 2);
+        triangles.Add(i);
+        triangles.Add(i + 2);
+        triangles.Add(i + 3);
+    }
+
+    private void GenerateNorthWall(int x, int z, int y)
+    {
+        int i = vertices.Count;
+
+        // Looking along Z axis
+        // Bottom left
+        vertices.Add(new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth));
+
+        // Top left
+        vertices.Add(new Vector3(x * renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth));
+
+        // Top right
+        vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth));
+
+        // Bottom right
+        vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth));
+
+        triangles.Add(i);
+        triangles.Add(i + 2);
+        triangles.Add(i + 1);
+        triangles.Add(i);
+        triangles.Add(i + 3);
+        triangles.Add(i + 2);
+    }    
 
     // Returns X coordinate of our (0,0) tile in the world
     private int WorldTileXPosition()
@@ -138,7 +288,7 @@ public class TerrainChunk : MonoBehaviour
     void OnDrawGizmosSelected()
     {
         Vector3 position = transform.position;
-        position += new Vector3(size / 2 * renderer.tileWidth, terrainData.terrainHeight  / 2 * renderer.tileHeight, size / 2 * renderer.tileDepth);
+        position += new Vector3(size / 2 * renderer.tileWidth, renderer.tileHeight / 2 * terrainData.terrainHeight, size / 2 * renderer.tileDepth);
 
         Gizmos.color = Color.yellow;
         Gizmos.DrawWireCube(position, new Vector3(size * renderer.tileWidth, terrainData.terrainHeight * renderer.tileHeight, size * renderer.tileDepth));

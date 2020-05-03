@@ -280,7 +280,7 @@ Camera:
   m_GameObject: {fileID: 963194225}
   m_Enabled: 1
   serializedVersion: 2
-  m_ClearFlags: 1
+  m_ClearFlags: 2
   m_BackGroundColor: {r: 0.19215687, g: 0.3019608, b: 0.4745098, a: 0}
   m_projectionMatrixMode: 1
   m_GateFitMode: 2
@@ -322,7 +322,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 963194225}
   m_LocalRotation: {x: 0.19902684, y: 0.35028765, z: -0.076439105, w: 0.9120548}
-  m_LocalPosition: {x: -1, y: 2.15, z: -2.51}
+  m_LocalPosition: {x: -1, y: 4.57, z: -2.51}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children: []
   m_Father: {fileID: 0}
@@ -415,11 +415,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3509779116a4f874388a3b386a334196, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  tileWidth: 1
-  tileDepth: 1
-  tileHeight: 1
-  terrainLayerPrefab: {fileID: 3390752597339880668, guid: 75e887298b2c89a44a15211d6a8e5c7b,
-    type: 3}
+  tileWidth: 1.54
+  tileDepth: 1.37
+  tileHeight: 1.39
   terrainChunkPrefab: {fileID: 7323657082605681422, guid: 90ab42d98bfb45f4d9985b225dbc70f5,
     type: 3}
   chunkSize: 20

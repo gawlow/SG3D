@@ -58,11 +58,11 @@ public class Terrain
 
     public bool IsPresent(int width, int depth, int height)
     {
-        if (width >= terrainWidth)
+        if (width < 0 || width >= terrainWidth)
             return false;
-        if (depth >= terrainDepth)
+        if (depth < 0 || depth >= terrainDepth)
             return false;
-        if (height >= terrainHeight)
+        if (height < 0 || height >= terrainHeight)
             return false;
 
         int index = GetArrayIndex(width, depth, height);
