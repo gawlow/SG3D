@@ -69,6 +69,7 @@ public class TerrainChunk : MonoBehaviour
                     voxel.collider = voxel.GetComponent<BoxCollider>();
                     voxel.collider.size = new Vector3(renderer.tileWidth, renderer.tileHeight, renderer.tileDepth);
                     voxel.collider.center = new Vector3(renderer.tileWidth / 2, renderer.tileHeight / 2, renderer.tileDepth / 2);
+                    voxel.collider.enabled = terrainData.IsPresent(x, z, y);
                     voxels[y, z, x] = voxel;
                 }
             }
