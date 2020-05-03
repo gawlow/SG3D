@@ -67,6 +67,22 @@ public class TerrainRenderer : MonoBehaviour
     public void UpdateWorldMeshForTile(Vector3Int tile)
     {
         GetChunkForTile(tile).UpdateMesh();
+
+        // Check if tile is at the chunk boundary and refresh neighbours if needed
+        int tileX = tile.x % chunkSize;
+        int tileZ = tile.z % chunkSize;
+
+        if (tileX == chunkSize - 1) {
+            GetChunkForTile(new Vector3Int(tile.x + 1, tile.y, tile.z)).UpdateMesh();
+        } else if (tileX == 1 && tile.x > 0) {
+            GetChunkForTile(new Vector3Int(tile.x - 1, tile.y, tile.z)).UpdateMesh();
+        }
+
+        if (tileZ == chunkSize - 1) {
+            GetChunkForTile(new Vector3Int(tile.x, tile.y, tile.z + 1)).UpdateMesh();
+        } else if (tileZ == 1 && tile.x > 0) {
+            GetChunkForTile(new Vector3Int(tile.x, tile.y , tile.z - 1)).UpdateMesh();
+        }
     }
 
     public TerrainVoxelCollider GetVoxel(Vector3Int tile)
