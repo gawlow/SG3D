@@ -19,6 +19,9 @@ public class TerrainChunk : MonoBehaviour
     Terrain terrainData;
     new TerrainRenderer renderer;
 
+    List<Vector3> vertices;
+    List<int> triangles;
+
     TerrainVoxelCollider[,,] voxels;
 
     void Awake()
@@ -34,6 +37,10 @@ public class TerrainChunk : MonoBehaviour
         this.chunkX = x;
         this.chunkZ = z;
         this.size = size;
+
+        // Preallocate to avoid GC
+        vertices = new List<Vector3>(terrainData.terrainWidth * terrainData.terrainDepth * terrainData.terrainHeight * 4);
+        triangles = new List<int>(terrainData.terrainWidth * terrainData.terrainDepth * terrainData.terrainHeight * 6);
     }
 
     // Get our Voxel object for given tile. Note that 'tile' refers to world location, not local chunk location
@@ -73,9 +80,9 @@ public class TerrainChunk : MonoBehaviour
     {
         float t = Time.realtimeSinceStartup;
 
-        Vector3[] vertices = new Vector3[terrainData.terrainWidth * terrainData.terrainDepth * terrainData.terrainHeight * 4];
-        int[] triangles = new int[terrainData.terrainWidth * terrainData.terrainDepth * terrainData.terrainHeight * 6];
         int i = 0, j = 0;
+        vertices.Clear();
+        triangles.Clear();
 
         // x/y/z
         for (int y = 0; y < terrainData.terrainHeight; y++) {
@@ -85,23 +92,23 @@ public class TerrainChunk : MonoBehaviour
                         continue;
 
                     // Bottom left
-                    vertices[i] = new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth);
+                    vertices.Add(new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth));
 
                     // Top left
-                    vertices[i + 1] = new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth);
+                    vertices.Add(new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth));
 
                     // Top right
-                    vertices[i + 2] = new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth);
+                    vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth));
 
                     // Bottom right
-                    vertices[i + 3] = new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth);
+                    vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth));
 
-                    triangles[j] = i;
-                    triangles[j + 1] = i + 1;
-                    triangles[j + 2] = i + 2;
-                    triangles[j + 3] = i;
-                    triangles[j + 4] = i + 2;
-                    triangles[j + 5] = i + 3;
+                    triangles.Add(i);
+                    triangles.Add(i + 1);
+                    triangles.Add(i + 2);
+                    triangles.Add(i);
+                    triangles.Add(i + 2);
+                    triangles.Add(i + 3);
 
                     i += 4;
                     j += 6;
@@ -114,8 +121,6 @@ public class TerrainChunk : MonoBehaviour
         mesh.SetTriangles(triangles, 0, j, 0);
         mesh.RecalculateNormals();
         meshFilter.mesh = mesh;
-
-        Debug.Log($"Create chunk ({chunkX}x{chunkZ}) mesh took {Time.realtimeSinceStartup - t}s. Created {i} vertices and {j} indexes");
     }
 
     // Returns X coordinate of our (0,0) tile in the world
