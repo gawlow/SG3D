@@ -19,6 +19,7 @@ public class TerrainRenderer : MonoBehaviour
 
     public TerrainChunk terrainChunkPrefab;
     public int chunkSize = 10;
+    public int chunkTextureSize = 10;
     TerrainChunk[,] chunks;
     Terrain terrainData;
 
@@ -43,7 +44,7 @@ public class TerrainRenderer : MonoBehaviour
                 chunk.transform.localPosition = new Vector3(x * chunkSize * tileWidth, 0f, z * chunkSize * tileDepth);
                 chunk.transform.localRotation = Quaternion.identity;
                 chunk.name = $"Chunk X: {x * chunkSize} Z:{z * chunkSize}, size: {chunkSize}";
-                chunk.Initialise(terrainData, this, x, z, chunkSize);
+                chunk.Initialise(terrainData, this, x, z, chunkSize, chunkTextureSize);
                 chunk.CreateVoxels();
                 chunks[x, z] = chunk;
             }

@@ -13,6 +13,8 @@ public class TerrainChunk : MonoBehaviour
     public int chunkX;          // chunk X
     public int chunkZ;          // chunk Z
     public int size;            // horizontal dimensions of chunk
+    public int textureSize;   // spread texture over how many tiles
+
     public TerrainVoxelCollider terrainVoxelColliderPrefab;
     MeshFilter meshFilter;
     Mesh mesh;
@@ -21,6 +23,7 @@ public class TerrainChunk : MonoBehaviour
 
     List<Vector3> vertices;
     List<int> triangles;
+    List<Vector2> uv0;
 
     TerrainVoxelCollider[,,] voxels;
 
@@ -30,17 +33,19 @@ public class TerrainChunk : MonoBehaviour
         mesh = new Mesh();
     }
 
-    public void Initialise(Terrain terrainData, TerrainRenderer renderer, int x, int z, int size)
+    public void Initialise(Terrain terrainData, TerrainRenderer renderer, int x, int z, int size, int textureSize)
     {
         this.renderer = renderer;
         this.terrainData = terrainData;
         this.chunkX = x;
         this.chunkZ = z;
         this.size = size;
+        this.textureSize = textureSize;
 
         // Preallocate to avoid GC
         vertices = new List<Vector3>(terrainData.terrainWidth * terrainData.terrainDepth * terrainData.terrainHeight * 4);
         triangles = new List<int>(terrainData.terrainWidth * terrainData.terrainDepth * terrainData.terrainHeight * 6);
+        uv0 = new List<Vector2>(terrainData.terrainWidth * terrainData.terrainDepth * terrainData.terrainHeight * 4);
     }
 
     // Get our Voxel object for given tile. Note that 'tile' refers to world location, not local chunk location
@@ -84,6 +89,7 @@ public class TerrainChunk : MonoBehaviour
         // int i = 0, j = 0;
         vertices.Clear();
         triangles.Clear();
+        uv0.Clear();
 
         // x/y/z
         for (int y = 0; y < terrainData.terrainHeight; y++) {
@@ -120,6 +126,7 @@ public class TerrainChunk : MonoBehaviour
         mesh.Clear();
         mesh.SetVertices(vertices, 0, vertices.Count);
         mesh.SetTriangles(triangles, 0, triangles.Count, 0);
+        mesh.SetUVs(0, uv0, 0, uv0.Count);
         mesh.RecalculateNormals();
         meshFilter.mesh = mesh;
     }
@@ -141,12 +148,50 @@ public class TerrainChunk : MonoBehaviour
         // Bottom right
         vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth));
 
+        float uv = 1f / textureSize;        
+        uv0.Add(new Vector2((WorldTileXPosition() + x) * uv, (WorldTileZPosition() + z) * uv));
+        uv0.Add(new Vector2((WorldTileXPosition() + x) * uv, (WorldTileZPosition() + z) * uv + uv));
+        uv0.Add(new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileZPosition() + z) * uv + uv));
+        uv0.Add(new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileZPosition() + z) * uv));
+
         triangles.Add(i);
         triangles.Add(i + 1);
         triangles.Add(i + 2);
         triangles.Add(i);
         triangles.Add(i + 2);
         triangles.Add(i + 3);
+    }
+
+
+    private void GenerateBottomWall(int x, int z, int y)
+    {
+        int i = vertices.Count;
+
+        // Looking along Y axis
+        // Bottom left
+        vertices.Add(new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth));
+
+        // Top left
+        vertices.Add(new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth));
+
+        // Top right
+        vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth));
+
+        // Bottom right
+        vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth));
+
+        float uv = 1f / textureSize;        
+        uv0.Add(new Vector2((WorldTileXPosition() + x) * uv, (WorldTileZPosition() + z) * uv));
+        uv0.Add(new Vector2((WorldTileXPosition() + x) * uv, (WorldTileZPosition() + z) * uv + uv));
+        uv0.Add(new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileZPosition() + z) * uv + uv));
+        uv0.Add(new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileZPosition() + z) * uv));
+
+        triangles.Add(i);
+        triangles.Add(i + 2);
+        triangles.Add(i + 1);
+        triangles.Add(i);
+        triangles.Add(i + 3);
+        triangles.Add(i + 2);
     }
 
     private void GenerateWestWall(int x, int z, int y)
@@ -165,6 +210,12 @@ public class TerrainChunk : MonoBehaviour
 
         // Bottom right
         vertices.Add(new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth));
+
+        float uv = 1f / textureSize;
+        uv0.Add(new Vector2((WorldTileZPosition() + z) * uv, (WorldTileYPosition() + y) * uv));
+        uv0.Add(new Vector2((WorldTileZPosition() + z) * uv, (WorldTileYPosition() + y) * uv + uv));
+        uv0.Add(new Vector2((WorldTileZPosition() + z) * uv + uv, (WorldTileYPosition() + y) * uv + uv));
+        uv0.Add(new Vector2((WorldTileZPosition() + z) * uv + uv, (WorldTileYPosition() + y) * uv));
 
         triangles.Add(i);
         triangles.Add(i + 1);
@@ -191,30 +242,11 @@ public class TerrainChunk : MonoBehaviour
         // Bottom right
         vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth));
 
-        triangles.Add(i);
-        triangles.Add(i + 2);
-        triangles.Add(i + 1);
-        triangles.Add(i);
-        triangles.Add(i + 3);
-        triangles.Add(i + 2);
-    }
-
-    private void GenerateBottomWall(int x, int z, int y)
-    {
-        int i = vertices.Count;
-
-        // Looking along Y axis
-        // Bottom left
-        vertices.Add(new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth));
-
-        // Top left
-        vertices.Add(new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth));
-
-        // Top right
-        vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth));
-
-        // Bottom right
-        vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth));
+        float uv = 1f / textureSize;
+        uv0.Add(new Vector2((WorldTileZPosition() + z) * uv, (WorldTileYPosition() + y) * uv));
+        uv0.Add(new Vector2((WorldTileZPosition() + z) * uv, (WorldTileYPosition() + y) * uv + uv));
+        uv0.Add(new Vector2((WorldTileZPosition() + z) * uv + uv, (WorldTileYPosition() + y) * uv + uv));
+        uv0.Add(new Vector2((WorldTileZPosition() + z) * uv + uv, (WorldTileYPosition() + y) * uv));
 
         triangles.Add(i);
         triangles.Add(i + 2);
@@ -241,6 +273,12 @@ public class TerrainChunk : MonoBehaviour
         // Bottom right
         vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth));
 
+        float uv = 1f / textureSize;
+        uv0.Add(new Vector2((WorldTileXPosition() + x) * uv, (WorldTileYPosition() + y) * uv));
+        uv0.Add(new Vector2((WorldTileXPosition() + x) * uv, (WorldTileYPosition() + y) * uv + uv));
+        uv0.Add(new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileYPosition() + y) * uv + uv));
+        uv0.Add(new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileYPosition() + y) * uv));
+
         triangles.Add(i);
         triangles.Add(i + 1);
         triangles.Add(i + 2);
@@ -266,6 +304,12 @@ public class TerrainChunk : MonoBehaviour
         // Bottom right
         vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth));
 
+        float uv = 1f / textureSize;
+        uv0.Add(new Vector2((WorldTileXPosition() + x) * uv, (WorldTileYPosition() + y) * uv));
+        uv0.Add(new Vector2((WorldTileXPosition() + x) * uv, (WorldTileYPosition() + y) * uv + uv));
+        uv0.Add(new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileYPosition() + y) * uv + uv));
+        uv0.Add(new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileYPosition() + y) * uv));
+
         triangles.Add(i);
         triangles.Add(i + 2);
         triangles.Add(i + 1);
@@ -284,6 +328,12 @@ public class TerrainChunk : MonoBehaviour
     private int WorldTileZPosition()
     {
         return size * chunkZ;
+    }
+
+    // Placerholder just in case
+    private int WorldTileYPosition()
+    {
+        return 0;
     }
 
     void OnDrawGizmosSelected()
