@@ -4,14 +4,15 @@ using UnityEngine;
 
 namespace SG3D {
 
+// This class is responsible for creating meshes and all other components
+// required to display given world chunk
 [RequireComponent(typeof(MeshFilter))]
 [RequireComponent(typeof(MeshRenderer))]
 public class TerrainChunk : MonoBehaviour
 {
-    public int chunkX;       // chunk X
-    public int chunkZ;       // chunk Z
-    public int size;        // chunks are cubes sized size x size in X and Z dimensions, and whole height
-    public TerrainLayer terrainLayerPrefab;
+    public int chunkX;          // chunk X
+    public int chunkZ;          // chunk Z
+    public int size;            // horizontal dimensions of chunk
     public TerrainVoxelCollider terrainVoxelColliderPrefab;
     MeshFilter meshFilter;
     Mesh mesh;
@@ -35,21 +36,15 @@ public class TerrainChunk : MonoBehaviour
         this.size = size;
     }
 
-    public int WorldTileXPosition()
-    {
-        return size * chunkX;
-    }
-
-    public int WorldTileZPosition()
-    {
-        return size * chunkZ;
-    }
-
+    // Get our Voxel object for given tile. Note that 'tile' refers to world location, not local chunk location
     public TerrainVoxelCollider GetVoxel(Vector3Int tile)
     {
         return voxels[tile.y, tile.z - WorldTileZPosition(), tile.x - WorldTileXPosition()];
     }
 
+    // Create all the Voxel objects. We're using them not to store data or logic handling, but mainly as  
+    // containers to BoxColliders. I'm not entirly happy with this solution but it seems to work and is quite performant
+    // (apart from the generation phase)
     public void CreateVoxels()
     {
         voxels = new TerrainVoxelCollider[terrainData.terrainHeight, size, size];
@@ -73,6 +68,7 @@ public class TerrainChunk : MonoBehaviour
         }
     }
 
+    // Mesh generation. It's never fun
     public void UpdateMesh()
     {
         float t = Time.realtimeSinceStartup;
@@ -120,6 +116,18 @@ public class TerrainChunk : MonoBehaviour
         meshFilter.mesh = mesh;
 
         Debug.Log($"Create chunk ({chunkX}x{chunkZ}) mesh took {Time.realtimeSinceStartup - t}s. Created {i} vertices and {j} indexes");
+    }
+
+    // Returns X coordinate of our (0,0) tile in the world
+    private int WorldTileXPosition()
+    {
+        return size * chunkX;
+    }
+
+    // Returns Z coordinate of our (0,0) tile in the world
+    private int WorldTileZPosition()
+    {
+        return size * chunkZ;
     }
 
     void OnDrawGizmosSelected()

@@ -4,11 +4,14 @@ using UnityEngine;
 
 namespace SG3D {
 
+// This class is responsible for displaying terrain.
+// It takes data from Terrain class and uses it to generate meshes, colliders and
+// other things required for user interaction
 public class TerrainRenderer : MonoBehaviour
 {
     public delegate void OnTileClick(Vector3Int tile);
 
-    public event OnTileClick tileClicked;
+    public event OnTileClick tileClicked;   // Called when user clicked on a tile
 
     public float tileWidth = 1f;
     public float tileDepth = 1f;
@@ -17,23 +20,19 @@ public class TerrainRenderer : MonoBehaviour
     public TerrainChunk terrainChunkPrefab;
     public int chunkSize = 10;
 
-    Mesh mesh;
     TerrainChunk[,] chunks;
     Terrain terrainData;
-
-    void Awake()
-    {
-        mesh = new Mesh();
-        mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
-    }
 
     public void Initialise(Terrain terrainData)
     {
         this.terrainData = terrainData;
     }
 
-    public int CreateWorldChunks()
+    public int CreateWorld()
     {
+        // Because map can be really large, generating a single mesh is a no-go, as updates to it would take too
+        // much time. So we divide world into equaly sized chunks, slicing the world along the X and Z coordinates 
+        // (Y is expected to be small anyway). Each chunk then generates its meshes, colliders, etc
         int width = (terrainData.terrainWidth / chunkSize) + ((terrainData.terrainWidth % chunkSize > 0) ? 1 : 0);
         int depth = (terrainData.terrainDepth / chunkSize) + ((terrainData.terrainDepth % chunkSize > 0) ? 1 : 0);
 
@@ -54,6 +53,7 @@ public class TerrainRenderer : MonoBehaviour
         return width * depth;
     }
 
+    // This updates entire world, should be called only on startup really
     public void UpdateWorldMesh()
     {
         for (int x = 0; x < chunks.GetLength(0); x++) {
@@ -63,6 +63,7 @@ public class TerrainRenderer : MonoBehaviour
         }
     }
 
+    // Updates mesh for chunk containing given tile
     public void UpdateWorldMeshForTile(Vector3Int tile)
     {
         GetChunkForTile(tile).UpdateMesh();
@@ -80,6 +81,7 @@ public class TerrainRenderer : MonoBehaviour
 
     void Update()
     {
+        // Detection of clicking on tiles
         if (Input.GetMouseButtonDown(0)) {
             Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
             RaycastHit hit;
