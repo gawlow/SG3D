@@ -12,50 +12,70 @@ public struct Vexel
 
 public class Terrain
 {
-    public int width;   // x-axis
-    public int depth;  // z-axis
-    public int height;  // y-axis
+    public int terrainWidth;   // x-axis
+    public int terrainDepth;  // z-axis
+    public int terrainHeight;  // y-axis
 
-    NativeArray<bool> filled;
+    public delegate void TilePresentChange(Vector3Int tile, bool value);
+    public event TilePresentChange tilePresentChanged;
+
+    NativeArray<bool> present;
 
     public void Generate(int width, int depth, int height) {
-        this.width = width;
-        this.depth = depth;
-        this.height = height;
+        terrainWidth = width;
+        terrainDepth = depth;
+        terrainHeight = height;
 
-        filled = new NativeArray<bool>(width * depth * height, Allocator.Persistent);
+        present = new NativeArray<bool>(width * depth * height, Allocator.Persistent);
     }
 
     public void Cleanup()
     {
-        filled.Dispose();
+        present.Dispose();
     }
 
-    public void SetFilled(bool value)
+    // Use for init, does not invoke callback
+    public void SetPresent(bool value)
     {
-        for (int i = 0, max = filled.Length; i < max; i++) {
-            filled[i] = value;
+        for (int i = 0, max = present.Length; i < max; i++) {
+            present[i] = value;
         }
     }
 
-    public void SetFilled(bool value, int width, int depth, int height)
+    public void SetPresent(Vector3Int tile, bool value)
     {
-        filled[GetArrayIndex(width, depth, height)] = value;
+        int index = GetArrayIndex(tile.x, tile.z, tile.y);
+        if (index >= present.Length)
+            Debug.Log($"Setting {tile} to {value}. Index is {index}");
+
+        present[index] = value;
+        tilePresentChanged?.Invoke(tile, value);
     }
 
-    public bool IsFilled(int width, int depth, int height)
+    public bool IsPresent(int width, int depth, int height)
     {
-        return filled[GetArrayIndex(width, depth, height)];
+        if (width >= terrainWidth)
+            return false;
+        if (depth >= terrainDepth)
+            return false;
+        if (height >= terrainHeight)
+            return false;
+
+        int index = GetArrayIndex(width, depth, height);
+        if (index >= present.Length)
+            return false;
+
+        return present[index];
     }
 
     public int GetArraySize()
     {
-        return (width * depth * height);
+        return (terrainWidth * terrainDepth * terrainHeight);
     }
 
     public int GetArrayIndex(int x, int z, int y)
     {
-        return (y * width * depth) + (z * width) + x;
+        return (y * terrainWidth * terrainDepth) + (z * terrainWidth) + x;
     }
 }
 

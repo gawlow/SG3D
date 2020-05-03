@@ -2,12 +2,10 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace SG3D {
-
-public class TerrainLayer : MonoBehaviour
+public class TerrainVoxelCollider : MonoBehaviour
 {
-    public int y;
+    public int tileX;
+    public int tileZ;
+    public int tileY;
     new public BoxCollider collider;
-}
-
 }

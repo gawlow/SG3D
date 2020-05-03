@@ -8,14 +8,17 @@ namespace SG3D {
 [RequireComponent(typeof(MeshRenderer))]
 public class TerrainChunk : MonoBehaviour
 {
-    public int x;
-    public int z;
-    public int size;
+    public int chunkX;       // chunk X
+    public int chunkZ;       // chunk Z
+    public int size;        // chunks are cubes sized size x size in X and Z dimensions, and whole height
     public TerrainLayer terrainLayerPrefab;
+    public TerrainVoxelCollider terrainVoxelColliderPrefab;
     MeshFilter meshFilter;
     Mesh mesh;
     Terrain terrainData;
     new TerrainRenderer renderer;
+
+    TerrainVoxelCollider[,,] voxels;
 
     void Awake()
     {
@@ -27,24 +30,62 @@ public class TerrainChunk : MonoBehaviour
     {
         this.renderer = renderer;
         this.terrainData = terrainData;
-        this.x = x;
-        this.z = z;
+        this.chunkX = x;
+        this.chunkZ = z;
         this.size = size;
+    }
+
+    public int WorldTileXPosition()
+    {
+        return size * chunkX;
+    }
+
+    public int WorldTileZPosition()
+    {
+        return size * chunkZ;
+    }
+
+    public TerrainVoxelCollider GetVoxel(Vector3Int tile)
+    {
+        return voxels[tile.y, tile.z - WorldTileZPosition(), tile.x - WorldTileXPosition()];
+    }
+
+    public void CreateVoxels()
+    {
+        voxels = new TerrainVoxelCollider[terrainData.terrainHeight, size, size];
+
+        for (int y = 0; y < terrainData.terrainHeight; y++) {
+            for (int z = 0; z < size; z++) {
+                for (int x = 0; x < size; x++) {
+                    TerrainVoxelCollider voxel = Instantiate<TerrainVoxelCollider>(terrainVoxelColliderPrefab, this.transform);
+                    voxel.transform.localPosition = new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth);
+                    voxel.transform.localRotation = Quaternion.identity;
+                    voxel.name = $"Voxel X: {WorldTileXPosition() + x}, Z: {WorldTileZPosition() + z}, Y: {y}";
+                    voxel.tileX = WorldTileXPosition() + x;
+                    voxel.tileZ = WorldTileZPosition() + z;
+                    voxel.tileY = y;
+                    voxel.collider = voxel.GetComponent<BoxCollider>();
+                    voxel.collider.size = new Vector3(renderer.tileWidth, renderer.tileHeight, renderer.tileDepth);
+                    voxel.collider.center = new Vector3(renderer.tileWidth / 2, renderer.tileHeight / 2, renderer.tileDepth / 2);
+                    voxels[y, z, x] = voxel;
+                }
+            }
+        }
     }
 
     public void UpdateMesh()
     {
         float t = Time.realtimeSinceStartup;
 
-        Vector3[] vertices = new Vector3[terrainData.width * terrainData.depth * terrainData.height * 4];
-        int[] triangles = new int[terrainData.width * terrainData.depth * terrainData.height * 6];
+        Vector3[] vertices = new Vector3[terrainData.terrainWidth * terrainData.terrainDepth * terrainData.terrainHeight * 4];
+        int[] triangles = new int[terrainData.terrainWidth * terrainData.terrainDepth * terrainData.terrainHeight * 6];
         int i = 0, j = 0;
 
         // x/y/z
-        for (int y = 0; y < terrainData.height; y++) {
+        for (int y = 0; y < terrainData.terrainHeight; y++) {
             for (int x = 0; x < size; x++) {
                 for (int z = 0; z < size; z++) {
-                    if (!terrainData.IsFilled(this.x * size + x, this.z * size + z, y))
+                    if (!terrainData.IsPresent(WorldTileXPosition() + x, WorldTileZPosition() + z, y))
                         continue;
 
                     // Bottom left
@@ -78,16 +119,16 @@ public class TerrainChunk : MonoBehaviour
         mesh.RecalculateNormals();
         meshFilter.mesh = mesh;
 
-        Debug.Log($"Create chunk ({x}x{z}) mesh took {Time.realtimeSinceStartup - t}s. Created {i} vertices and {j} indexes");
+        Debug.Log($"Create chunk ({chunkX}x{chunkZ}) mesh took {Time.realtimeSinceStartup - t}s. Created {i} vertices and {j} indexes");
     }
 
     void OnDrawGizmosSelected()
     {
         Vector3 position = transform.position;
-        position += new Vector3(size / 2, terrainData.height / 2, size / 2);
+        position += new Vector3(size / 2 * renderer.tileWidth, terrainData.terrainHeight  / 2 * renderer.tileHeight, size / 2 * renderer.tileDepth);
 
         Gizmos.color = Color.yellow;
-        Gizmos.DrawWireCube(position, new Vector3(size, terrainData.height, size));
+        Gizmos.DrawWireCube(position, new Vector3(size * renderer.tileWidth, terrainData.terrainHeight * renderer.tileHeight, size * renderer.tileDepth));
     }
 }
 

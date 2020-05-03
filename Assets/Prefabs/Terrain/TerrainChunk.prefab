@@ -45,10 +45,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 68b011e12f5df2144a75dcc65978f983, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  x: 0
-  z: 0
+  chunkX: 0
+  chunkZ: 0
   size: 0
-  terrainLayerPrefab: {fileID: 0}
+  terrainLayerPrefab: {fileID: 4797694814393545041, guid: 0c498e6e31bb8974095d99c250681c3c,
+    type: 3}
+  terrainVoxelColliderPrefab: {fileID: 1977862530606256284, guid: 0c498e6e31bb8974095d99c250681c3c,
+    type: 3}
 --- !u!33 &703746219600566930
 MeshFilter:
   m_ObjectHideFlags: 0

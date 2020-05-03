@@ -7,7 +7,6 @@ namespace SG3D {
 [RequireComponent(typeof(SG3D.TerrainRenderer))]
 public class TerrainGenerator : MonoBehaviour
 {
-
     SG3D.Terrain terrain;
     SG3D.TerrainRenderer terrainRenderer;
 
@@ -21,30 +20,35 @@ public class TerrainGenerator : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        terrain.Generate(100, 100, 2);
-        terrain.SetFilled(true);
-        terrain.SetFilled(false, 0, 1, 0);
-        terrain.SetFilled(false, 0, 2, 0);
+        terrain.Generate(105, 105, 2);
+        terrain.SetPresent(true);
+        terrain.SetPresent(new Vector3Int(1, 0, 0), false);
+        terrain.SetPresent(new Vector3Int(2, 0, 0), false);
 
-        int chunks = terrainRenderer.CreateWorldMesh();
+        int chunks = terrainRenderer.CreateWorldChunks();
         Debug.Log($"Created {chunks} terrain chunks");
 
-        terrainRenderer.CreateLevelColliders();
         terrainRenderer.UpdateWorldMesh();
         terrainRenderer.tileClicked += OnTileClicked;
+        terrain.tilePresentChanged += OnTilePresentChanged;
     }
 
     void OnDestroy() {
         // Required for NativeArray cleanup
         terrainRenderer.tileClicked -= OnTileClicked;
+        terrain.tilePresentChanged -= OnTilePresentChanged;
         terrain.Cleanup();
     }
 
-    public void OnTileClicked(int x, int z, int y) {
-        // tileInfo.collider.enabled = false;
+    public void OnTileClicked(Vector3Int tile)
+    {
+        terrain.SetPresent(tile, false);
+    }
 
-        terrain.SetFilled(false, x, z, y);
-        terrainRenderer.UpdateWorldMeshForTile(x, z, y);
+    public void OnTilePresentChanged(Vector3Int tile, bool value)
+    {
+        terrainRenderer.GetVoxel(tile).collider.enabled = value;
+        terrainRenderer.UpdateWorldMeshForTile(tile);
     }
 }
 
