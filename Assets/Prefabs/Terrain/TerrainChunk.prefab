@@ -48,8 +48,7 @@ MonoBehaviour:
   chunkX: 0
   chunkZ: 0
   size: 0
-  terrainLayerPrefab: {fileID: 4797694814393545041, guid: 0c498e6e31bb8974095d99c250681c3c,
-    type: 3}
+  textureSize: 0
   terrainVoxelColliderPrefab: {fileID: 1977862530606256284, guid: 0c498e6e31bb8974095d99c250681c3c,
     type: 3}
 --- !u!33 &703746219600566930
@@ -78,7 +77,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 1e4671345edc84a43a43bec1f6201a92, type: 2}
+  - {fileID: 0}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0

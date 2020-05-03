@@ -5,6 +5,15 @@ using Unity.Collections;
 
 namespace SG3D {
 
+public enum TerrainType {
+    None = 0,
+    Grass = 1,
+    Dirt = 2,
+    SoftRocks = 3,
+    HardRocks = 4,
+    Sand = 5,
+};
+
 // This class holds data about entire terrain in SOA layout.
 // Terrain is a collection of cubes identified by discrete X/Y/Z (although passing convention is more often X/Z/Y).
 // A single terrain cube is often refered to as 'tile' here and 'voxel' in visual layer.
@@ -19,10 +28,13 @@ public class Terrain
     public int terrainHeight;  // y-axis
 
     public delegate void TilePresentChange(Vector3Int tile, bool value);
+    public delegate void TileTypeChange(Vector3Int tile, TerrainType value);
     public event TilePresentChange tilePresentChanged;
+    public event TileTypeChange tileTypeChanged;
 
     // Is tile present at all?
     NativeArray<bool> present;
+    NativeArray<TerrainType> type;
 
     public void Generate(int width, int depth, int height)
     {
@@ -31,11 +43,13 @@ public class Terrain
         terrainHeight = height;
 
         present = new NativeArray<bool>(width * depth * height, Allocator.Persistent);
+        type = new NativeArray<TerrainType>(width * depth * height, Allocator.Persistent);
     }
 
     public void Cleanup()
     {
         present.Dispose();
+        type.Dispose();
     }
 
     // Use for init, does not invoke callback
@@ -49,8 +63,7 @@ public class Terrain
     public void SetPresent(Vector3Int tile, bool value)
     {
         int index = GetArrayIndex(tile.x, tile.z, tile.y);
-        if (index >= present.Length)
-            Debug.Log($"Setting {tile} to {value}. Index is {index}");
+        Debug.Assert(index < present.Length);
 
         present[index] = value;
         tilePresentChanged?.Invoke(tile, value);
@@ -70,6 +83,27 @@ public class Terrain
             return false;
 
         return present[index];
+    }
+
+    public void SetType(TerrainType value)
+    {
+        for (int i = 0, max = present.Length; i < max; i++) {
+            type[i] = value;
+        }
+    }
+
+    public void SetType(Vector3Int tile, TerrainType value)
+    {
+        int index = GetArrayIndex(tile.x, tile.z, tile.y);
+        Debug.Assert(index < present.Length);
+
+        type[index] = value;
+        tileTypeChanged?.Invoke(tile, value);
+    }
+
+    public TerrainType GetType(int width, int depth, int height)
+    {
+        return type[GetArrayIndex(width, depth, height)];
     }
 
     private int GetArrayIndex(int x, int z, int y)

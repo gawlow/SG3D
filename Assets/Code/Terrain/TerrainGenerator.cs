@@ -26,12 +26,17 @@ public class TerrainGenerator : MonoBehaviour
         // Some sample terrain
         terrain.Generate(width, depth, height);
         terrain.SetPresent(true);
-        // terrain.SetPresent(new Vector3Int(1, 0, 0), false);
-        // terrain.SetPresent(new Vector3Int(2, 0, 0), false);
+        terrain.SetType(TerrainType.None);
 
-        int chunks = terrainRenderer.CreateWorld();
-        Debug.Log($"Created {chunks} terrain chunks");
+        for (int x = 0; x < width; x++) {
+            for (int z = 0; z < depth; z++) {
+                terrain.SetType(new Vector3Int(x, 0, z), TerrainType.Dirt);
+                terrain.SetType(new Vector3Int(x, 1, z), TerrainType.Grass);
+                terrain.SetType(new Vector3Int(x, 2, z), TerrainType.Grass);
+            }
+        }
 
+        terrainRenderer.CreateWorld();
         terrainRenderer.UpdateWorldMesh();
         terrainRenderer.tileClicked += OnTileClicked;
         terrain.tilePresentChanged += OnTilePresentChanged;

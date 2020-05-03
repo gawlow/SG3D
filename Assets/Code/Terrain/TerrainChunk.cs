@@ -24,6 +24,7 @@ public class TerrainChunk : MonoBehaviour
     List<Vector3> vertices;
     List<int> triangles;
     List<Vector2> uv0;
+    List<Color> colors;   // Index for texture array. Technically Color32 would be better, but I'm scared of rounding errors
 
     TerrainVoxelCollider[,,] voxels;
 
@@ -46,6 +47,7 @@ public class TerrainChunk : MonoBehaviour
         vertices = new List<Vector3>(terrainData.terrainWidth * terrainData.terrainDepth * terrainData.terrainHeight * 4);
         triangles = new List<int>(terrainData.terrainWidth * terrainData.terrainDepth * terrainData.terrainHeight * 6);
         uv0 = new List<Vector2>(terrainData.terrainWidth * terrainData.terrainDepth * terrainData.terrainHeight * 4);
+        colors = new List<Color>(terrainData.terrainWidth * terrainData.terrainDepth * terrainData.terrainHeight * 4);
     }
 
     // Get our Voxel object for given tile. Note that 'tile' refers to world location, not local chunk location
@@ -90,6 +92,7 @@ public class TerrainChunk : MonoBehaviour
         vertices.Clear();
         triangles.Clear();
         uv0.Clear();
+        colors.Clear();
 
         // x/y/z
         for (int y = 0; y < terrainData.terrainHeight; y++) {
@@ -102,23 +105,27 @@ public class TerrainChunk : MonoBehaviour
                     if (!terrainData.IsPresent(worldX, worldZ, worldY))
                         continue;
 
-                    if (!terrainData.IsPresent(worldX, worldZ, worldY + 1))
-                        GenerateTopWall(x, z, y);
+                    TerrainType type = terrainData.GetType(worldX, worldZ, worldY);
+                    if (type == TerrainType.None)
+                        continue;
+
+                    if (!terrainData.IsPresent(worldX, worldZ, worldY + 1) || terrainData.GetType(worldX, worldZ, worldY + 1) == TerrainType.None)
+                        GenerateTopWall(x, z, y, type);
                     
-                    if (!terrainData.IsPresent(worldX, worldZ, worldY - 1))
-                        GenerateBottomWall(x, z, y);
+                    if (!terrainData.IsPresent(worldX, worldZ, worldY - 1) || terrainData.GetType(worldX, worldZ, worldY - 1) == TerrainType.None)
+                        GenerateBottomWall(x, z, y, type);
 
-                    if (!terrainData.IsPresent(worldX, worldZ - 1, worldY))
-                        GenerateSouthWall(x, z, y);
+                    if (!terrainData.IsPresent(worldX, worldZ - 1, worldY) || terrainData.GetType(worldX, worldZ - 1, worldY) == TerrainType.None)
+                        GenerateSouthWall(x, z, y, type);
 
-                    if (!terrainData.IsPresent(worldX, worldZ + 1, worldY))
-                        GenerateNorthWall(x, z, y);
+                    if (!terrainData.IsPresent(worldX, worldZ + 1, worldY) || terrainData.GetType(worldX, worldZ + 1, worldY) == TerrainType.None)
+                        GenerateNorthWall(x, z, y, type);
 
-                    if (!terrainData.IsPresent(worldX - 1, worldZ, worldY))
-                        GenerateWestWall(x, z, y);
+                    if (!terrainData.IsPresent(worldX - 1, worldZ, worldY) || terrainData.GetType(worldX - 1, worldZ, worldY) == TerrainType.None)
+                        GenerateWestWall(x, z, y, type);
 
-                    if (!terrainData.IsPresent(worldX + 1, worldZ, worldY))
-                        GenerateEastWall(x, z, y);
+                    if (!terrainData.IsPresent(worldX + 1, worldZ, worldY) || terrainData.GetType(worldX + 1, worldZ, worldY) == TerrainType.None)
+                        GenerateEastWall(x, z, y, type);
                 }
             }
         }
@@ -127,11 +134,12 @@ public class TerrainChunk : MonoBehaviour
         mesh.SetVertices(vertices, 0, vertices.Count);
         mesh.SetTriangles(triangles, 0, triangles.Count, 0);
         mesh.SetUVs(0, uv0, 0, uv0.Count);
+        mesh.SetColors(colors, 0, colors.Count);
         mesh.RecalculateNormals();
         meshFilter.mesh = mesh;
     }
 
-    private void GenerateTopWall(int x, int z, int y)
+    private void GenerateTopWall(int x, int z, int y, TerrainType type)
     {
         int i = vertices.Count;
 
@@ -154,6 +162,12 @@ public class TerrainChunk : MonoBehaviour
         uv0.Add(new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileZPosition() + z) * uv + uv));
         uv0.Add(new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileZPosition() + z) * uv));
 
+         // +0.1f is to ensure that converting to intger will result in correct number
+        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
+        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
+        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
+        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
+
         triangles.Add(i);
         triangles.Add(i + 1);
         triangles.Add(i + 2);
@@ -162,8 +176,7 @@ public class TerrainChunk : MonoBehaviour
         triangles.Add(i + 3);
     }
 
-
-    private void GenerateBottomWall(int x, int z, int y)
+    private void GenerateBottomWall(int x, int z, int y, TerrainType type)
     {
         int i = vertices.Count;
 
@@ -186,6 +199,12 @@ public class TerrainChunk : MonoBehaviour
         uv0.Add(new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileZPosition() + z) * uv + uv));
         uv0.Add(new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileZPosition() + z) * uv));
 
+        // +0.1f is to ensure that converting to intger will result in correct number
+        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
+        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
+        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
+        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
+
         triangles.Add(i);
         triangles.Add(i + 2);
         triangles.Add(i + 1);
@@ -194,7 +213,7 @@ public class TerrainChunk : MonoBehaviour
         triangles.Add(i + 2);
     }
 
-    private void GenerateWestWall(int x, int z, int y)
+    private void GenerateWestWall(int x, int z, int y, TerrainType type)
     {
         int i = vertices.Count;
 
@@ -217,6 +236,12 @@ public class TerrainChunk : MonoBehaviour
         uv0.Add(new Vector2((WorldTileZPosition() + z) * uv + uv, (WorldTileYPosition() + y) * uv + uv));
         uv0.Add(new Vector2((WorldTileZPosition() + z) * uv + uv, (WorldTileYPosition() + y) * uv));
 
+        // +0.1f is to ensure that converting to intger will result in correct number
+        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
+        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
+        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
+        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
+
         triangles.Add(i);
         triangles.Add(i + 1);
         triangles.Add(i + 2);
@@ -225,7 +250,7 @@ public class TerrainChunk : MonoBehaviour
         triangles.Add(i + 3);
     }
 
-    private void GenerateEastWall(int x, int z, int y)
+    private void GenerateEastWall(int x, int z, int y, TerrainType type)
     {
         int i = vertices.Count;
 
@@ -248,6 +273,12 @@ public class TerrainChunk : MonoBehaviour
         uv0.Add(new Vector2((WorldTileZPosition() + z) * uv + uv, (WorldTileYPosition() + y) * uv + uv));
         uv0.Add(new Vector2((WorldTileZPosition() + z) * uv + uv, (WorldTileYPosition() + y) * uv));
 
+        // +0.1f is to ensure that converting to intger will result in correct number
+        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
+        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
+        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
+        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
+
         triangles.Add(i);
         triangles.Add(i + 2);
         triangles.Add(i + 1);
@@ -256,7 +287,7 @@ public class TerrainChunk : MonoBehaviour
         triangles.Add(i + 2);
     }
 
-    private void GenerateSouthWall(int x, int z, int y)
+    private void GenerateSouthWall(int x, int z, int y, TerrainType type)
     {
         int i = vertices.Count;
 
@@ -279,6 +310,12 @@ public class TerrainChunk : MonoBehaviour
         uv0.Add(new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileYPosition() + y) * uv + uv));
         uv0.Add(new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileYPosition() + y) * uv));
 
+        // +0.1f is to ensure that converting to intger will result in correct number
+        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
+        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
+        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
+        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
+
         triangles.Add(i);
         triangles.Add(i + 1);
         triangles.Add(i + 2);
@@ -287,7 +324,7 @@ public class TerrainChunk : MonoBehaviour
         triangles.Add(i + 3);
     }
 
-    private void GenerateNorthWall(int x, int z, int y)
+    private void GenerateNorthWall(int x, int z, int y, TerrainType type)
     {
         int i = vertices.Count;
 
@@ -309,6 +346,12 @@ public class TerrainChunk : MonoBehaviour
         uv0.Add(new Vector2((WorldTileXPosition() + x) * uv, (WorldTileYPosition() + y) * uv + uv));
         uv0.Add(new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileYPosition() + y) * uv + uv));
         uv0.Add(new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileYPosition() + y) * uv));
+
+        // +0.1f is to ensure that converting to intger will result in correct number
+        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
+        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
+        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
+        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
 
         triangles.Add(i);
         triangles.Add(i + 2);

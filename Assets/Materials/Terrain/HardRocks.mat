@@ -7,9 +7,9 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: Ground
+  m_Name: HardRocks
   m_Shader: {fileID: 4800000, guid: 933532a4fcc9baf4fa0491de14d08ed7, type: 3}
-  m_ShaderKeywords: _ENVIRONMENTREFLECTIONS_OFF
+  m_ShaderKeywords: _METALLICSPECGLOSSMAP _NORMALMAP _OCCLUSIONMAP
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
@@ -21,23 +21,11 @@ Material:
     serializedVersion: 3
     m_TexEnvs:
     - _BaseMap:
-        m_Texture: {fileID: 2800000, guid: b7ee70b4fd03b1c4aafa27cb4db3a673, type: 3}
+        m_Texture: {fileID: 2800000, guid: 9ffff4db623f26d4986ce44d12d8f813, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _BumpMap:
-        m_Texture: {fileID: 2800000, guid: 83f04189368ddb343b6e3eca6f1de874, type: 3}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
-    - _DetailAlbedoMap:
-        m_Texture: {fileID: 0}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
-    - _DetailMask:
-        m_Texture: {fileID: 0}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
-    - _DetailNormalMap:
-        m_Texture: {fileID: 0}
+        m_Texture: {fileID: 2800000, guid: f0fb6f72ba4e0414bbbe1b2e0f36de34, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _EmissionMap:
@@ -45,19 +33,15 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _MainTex:
-        m_Texture: {fileID: 0}
+        m_Texture: {fileID: 2800000, guid: 9ffff4db623f26d4986ce44d12d8f813, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _MetallicGlossMap:
-        m_Texture: {fileID: 2800000, guid: 1eca799978b1f9d40bab4f7b58f05538, type: 3}
+        m_Texture: {fileID: 2800000, guid: 4aa9a49b00978264f83fd397c6d8ea6f, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _OcclusionMap:
-        m_Texture: {fileID: 2800000, guid: d44b96bea76dbd8449f8a75a6be91383, type: 3}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
-    - _ParallaxMap:
-        m_Texture: {fileID: 0}
+        m_Texture: {fileID: 2800000, guid: 533fe4c6aee079c4686814301cc9f758, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _SpecGlossMap:
@@ -70,32 +54,28 @@ Material:
     - _BumpScale: 1
     - _Cull: 2
     - _Cutoff: 0.5
-    - _DetailNormalMapScale: 1
     - _DstBlend: 0
-    - _EnvironmentReflections: 0
-    - _GlossMapScale: 1
-    - _Glossiness: 0.5
-    - _GlossyReflections: 1
+    - _EnvironmentReflections: 1
+    - _GlossMapScale: 0
+    - _Glossiness: 0
+    - _GlossyReflections: 0
     - _Metallic: 0
-    - _Mode: 0
     - _OcclusionStrength: 1
-    - _Parallax: 0.02
     - _QueueOffset: 0
     - _ReceiveShadows: 1
-    - _Smoothness: 0.321
+    - _Smoothness: 0.5
     - _SmoothnessTextureChannel: 0
     - _SpecularHighlights: 1
     - _SrcBlend: 1
     - _Surface: 0
-    - _UVSec: 0
     - _WorkflowMode: 1
     - _ZWrite: 1
     m_Colors:
-    - _BaseColor: {r: 1, g: 0.69252735, b: 0.21226418, a: 1}
-    - _Color: {r: 1, g: 0.69252735, b: 0.21226418, a: 1}
+    - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
+    - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _SpecColor: {r: 0.2, g: 0.2, b: 0.2, a: 1}
---- !u!114 &6887838101005079366
+--- !u!114 &7942610109423878519
 MonoBehaviour:
   m_ObjectHideFlags: 11
   m_CorrespondingSourceObject: {fileID: 0}

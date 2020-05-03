@@ -321,13 +321,13 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 963194225}
-  m_LocalRotation: {x: 0.33149648, y: 0.23130836, z: -0.08418935, w: 0.91077924}
-  m_LocalPosition: {x: -2.51, y: 10, z: -3.61}
+  m_LocalRotation: {x: 0.32266054, y: 0.31166524, z: -0.11343684, w: 0.8865027}
+  m_LocalPosition: {x: -16.7, y: 23, z: -20}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children: []
   m_Father: {fileID: 0}
   m_RootOrder: 0
-  m_LocalEulerAnglesHint: {x: 40, y: 28.5, z: 0}
+  m_LocalEulerAnglesHint: {x: 40, y: 38.74, z: 0}
 --- !u!114 &963194229
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -403,6 +403,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 64522c10d7e7dd7418ff43cb53268649, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  width: 30
+  depth: 30
+  height: 3
 --- !u!114 &1180241472
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -415,9 +418,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3509779116a4f874388a3b386a334196, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  tileWidth: 1.54
-  tileDepth: 1.37
-  tileHeight: 1.39
+  tileWidth: 1.46
+  tileDepth: 1.53
+  tileHeight: 1.5
   terrainChunkPrefab: {fileID: 7323657082605681422, guid: 90ab42d98bfb45f4d9985b225dbc70f5,
     type: 3}
-  chunkSize: 20
+  chunkSize: 10
+  chunkTextureSize: 30
+  grassMaterial: {fileID: 2100000, guid: 744cd630e1f21fc45852e28191be1041, type: 2}
+  dirtMaterial: {fileID: 2100000, guid: b7646e23753fc6f478764a83d7e3d94d, type: 2}
+  softRocksMaterial: {fileID: 2100000, guid: 59d816b66e657914483529d3b165a58a, type: 2}
+  hardRocksMaterial: {fileID: 2100000, guid: 75ea114264d2f394aa153536666e104c, type: 2}
+  sandMaterial: {fileID: 2100000, guid: 8bdf2701e088b304f946bee3d9eb0b10, type: 2}
+  terrainMaterial: {fileID: 2100000, guid: 7b91007196d503a4cba95a1775e23185, type: 2}
