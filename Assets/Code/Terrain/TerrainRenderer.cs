@@ -19,7 +19,6 @@ public class TerrainRenderer : MonoBehaviour
 
     public TerrainChunk terrainChunkPrefab;
     public int chunkSize = 10;
-
     TerrainChunk[,] chunks;
     Terrain terrainData;
 
@@ -72,13 +71,13 @@ public class TerrainRenderer : MonoBehaviour
         int tileX = tile.x % chunkSize;
         int tileZ = tile.z % chunkSize;
 
-        if (tileX == chunkSize - 1) {
+        if (tileX == chunkSize - 1 && terrainData.terrainWidth > tile.x + 1) {  // +1 because tiles are indexed from 0
             GetChunkForTile(new Vector3Int(tile.x + 1, tile.y, tile.z)).UpdateMesh();
         } else if (tileX == 1 && tile.x > 0) {
             GetChunkForTile(new Vector3Int(tile.x - 1, tile.y, tile.z)).UpdateMesh();
         }
 
-        if (tileZ == chunkSize - 1) {
+        if (tileZ == chunkSize - 1 && terrainData.terrainDepth > tile.z + 1) {  // +1 because tiles are indexed from 0
             GetChunkForTile(new Vector3Int(tile.x, tile.y, tile.z + 1)).UpdateMesh();
         } else if (tileZ == 1 && tile.x > 0) {
             GetChunkForTile(new Vector3Int(tile.x, tile.y , tile.z - 1)).UpdateMesh();
