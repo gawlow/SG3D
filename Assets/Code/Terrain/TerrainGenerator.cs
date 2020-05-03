@@ -10,6 +10,10 @@ public class TerrainGenerator : MonoBehaviour
     SG3D.Terrain terrain;
     SG3D.TerrainRenderer terrainRenderer;
 
+    public int width;
+    public int depth;
+    public int height;
+
     void Awake()
     {
         terrainRenderer = GetComponent<SG3D.TerrainRenderer>();
@@ -20,7 +24,7 @@ public class TerrainGenerator : MonoBehaviour
     void Start()
     {
         // Some sample terrain
-        terrain.Generate(100, 100, 2);
+        terrain.Generate(width, depth, height);
         terrain.SetPresent(true);
         // terrain.SetPresent(new Vector3Int(1, 0, 0), false);
         // terrain.SetPresent(new Vector3Int(2, 0, 0), false);
