@@ -34,7 +34,7 @@ public class TerrainChunk : MonoBehaviour
         mesh = new Mesh();
     }
 
-    public void Initialise(Terrain terrainData, TerrainRenderer renderer, int x, int z, int size, int textureSize)
+    public void Initialise(Terrain terrainData, TerrainRenderer renderer, int x, int z, int size, int textureSize, Material material)
     {
         this.renderer = renderer;
         this.terrainData = terrainData;
@@ -42,6 +42,8 @@ public class TerrainChunk : MonoBehaviour
         this.chunkZ = z;
         this.size = size;
         this.textureSize = textureSize;
+
+        GetComponent<MeshRenderer>().material = material;
 
         // Preallocate to avoid GC
         vertices = new List<Vector3>(terrainData.terrainWidth * terrainData.terrainDepth * terrainData.terrainHeight * 4);
@@ -106,26 +108,25 @@ public class TerrainChunk : MonoBehaviour
                         continue;
 
                     TerrainType type = terrainData.GetType(worldX, worldZ, worldY);
-                    if (type == TerrainType.None)
-                        continue;
+                    TerrainTypeMaterialInfo materialInfo = renderer.GetMaterialInfo(type);
 
-                    if (!terrainData.IsPresent(worldX, worldZ, worldY + 1) || terrainData.GetType(worldX, worldZ, worldY + 1) == TerrainType.None)
-                        GenerateTopWall(x, z, y, type);
+                    if (!terrainData.IsPresent(worldX, worldZ, worldY + 1))
+                        GenerateTopWall(x, z, y, materialInfo);
                     
-                    if (!terrainData.IsPresent(worldX, worldZ, worldY - 1) || terrainData.GetType(worldX, worldZ, worldY - 1) == TerrainType.None)
-                        GenerateBottomWall(x, z, y, type);
+                    if (!terrainData.IsPresent(worldX, worldZ, worldY - 1))
+                        GenerateBottomWall(x, z, y, materialInfo);
 
-                    if (!terrainData.IsPresent(worldX, worldZ - 1, worldY) || terrainData.GetType(worldX, worldZ - 1, worldY) == TerrainType.None)
-                        GenerateSouthWall(x, z, y, type);
+                    if (!terrainData.IsPresent(worldX, worldZ - 1, worldY))
+                        GenerateSouthWall(x, z, y, materialInfo);
 
-                    if (!terrainData.IsPresent(worldX, worldZ + 1, worldY) || terrainData.GetType(worldX, worldZ + 1, worldY) == TerrainType.None)
-                        GenerateNorthWall(x, z, y, type);
+                    if (!terrainData.IsPresent(worldX, worldZ + 1, worldY))
+                        GenerateNorthWall(x, z, y, materialInfo);
 
-                    if (!terrainData.IsPresent(worldX - 1, worldZ, worldY) || terrainData.GetType(worldX - 1, worldZ, worldY) == TerrainType.None)
-                        GenerateWestWall(x, z, y, type);
+                    if (!terrainData.IsPresent(worldX - 1, worldZ, worldY))
+                        GenerateWestWall(x, z, y, materialInfo);
 
-                    if (!terrainData.IsPresent(worldX + 1, worldZ, worldY) || terrainData.GetType(worldX + 1, worldZ, worldY) == TerrainType.None)
-                        GenerateEastWall(x, z, y, type);
+                    if (!terrainData.IsPresent(worldX + 1, worldZ, worldY))
+                        GenerateEastWall(x, z, y, materialInfo);
                 }
             }
         }
@@ -139,7 +140,7 @@ public class TerrainChunk : MonoBehaviour
         meshFilter.mesh = mesh;
     }
 
-    private void GenerateTopWall(int x, int z, int y, TerrainType type)
+    private void GenerateTopWall(int x, int z, int y, TerrainTypeMaterialInfo materialInfo)
     {
         int i = vertices.Count;
 
@@ -162,11 +163,10 @@ public class TerrainChunk : MonoBehaviour
         uv0.Add(new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileZPosition() + z) * uv + uv));
         uv0.Add(new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileZPosition() + z) * uv));
 
-         // +0.1f is to ensure that converting to intger will result in correct number
-        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
-        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
-        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
-        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
+        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
+        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
+        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
+        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
 
         triangles.Add(i);
         triangles.Add(i + 1);
@@ -176,7 +176,7 @@ public class TerrainChunk : MonoBehaviour
         triangles.Add(i + 3);
     }
 
-    private void GenerateBottomWall(int x, int z, int y, TerrainType type)
+    private void GenerateBottomWall(int x, int z, int y, TerrainTypeMaterialInfo materialInfo)
     {
         int i = vertices.Count;
 
@@ -199,11 +199,10 @@ public class TerrainChunk : MonoBehaviour
         uv0.Add(new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileZPosition() + z) * uv + uv));
         uv0.Add(new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileZPosition() + z) * uv));
 
-        // +0.1f is to ensure that converting to intger will result in correct number
-        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
-        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
-        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
-        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
+        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
+        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
+        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
+        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
 
         triangles.Add(i);
         triangles.Add(i + 2);
@@ -213,7 +212,7 @@ public class TerrainChunk : MonoBehaviour
         triangles.Add(i + 2);
     }
 
-    private void GenerateWestWall(int x, int z, int y, TerrainType type)
+    private void GenerateWestWall(int x, int z, int y, TerrainTypeMaterialInfo materialInfo)
     {
         int i = vertices.Count;
 
@@ -236,11 +235,10 @@ public class TerrainChunk : MonoBehaviour
         uv0.Add(new Vector2((WorldTileZPosition() + z) * uv + uv, (WorldTileYPosition() + y) * uv + uv));
         uv0.Add(new Vector2((WorldTileZPosition() + z) * uv + uv, (WorldTileYPosition() + y) * uv));
 
-        // +0.1f is to ensure that converting to intger will result in correct number
-        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
-        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
-        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
-        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
+        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
+        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
+        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
+        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
 
         triangles.Add(i);
         triangles.Add(i + 1);
@@ -250,7 +248,7 @@ public class TerrainChunk : MonoBehaviour
         triangles.Add(i + 3);
     }
 
-    private void GenerateEastWall(int x, int z, int y, TerrainType type)
+    private void GenerateEastWall(int x, int z, int y, TerrainTypeMaterialInfo materialInfo)
     {
         int i = vertices.Count;
 
@@ -273,11 +271,10 @@ public class TerrainChunk : MonoBehaviour
         uv0.Add(new Vector2((WorldTileZPosition() + z) * uv + uv, (WorldTileYPosition() + y) * uv + uv));
         uv0.Add(new Vector2((WorldTileZPosition() + z) * uv + uv, (WorldTileYPosition() + y) * uv));
 
-        // +0.1f is to ensure that converting to intger will result in correct number
-        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
-        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
-        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
-        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
+        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
+        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
+        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
+        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
 
         triangles.Add(i);
         triangles.Add(i + 2);
@@ -287,7 +284,7 @@ public class TerrainChunk : MonoBehaviour
         triangles.Add(i + 2);
     }
 
-    private void GenerateSouthWall(int x, int z, int y, TerrainType type)
+    private void GenerateSouthWall(int x, int z, int y, TerrainTypeMaterialInfo materialInfo)
     {
         int i = vertices.Count;
 
@@ -310,11 +307,10 @@ public class TerrainChunk : MonoBehaviour
         uv0.Add(new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileYPosition() + y) * uv + uv));
         uv0.Add(new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileYPosition() + y) * uv));
 
-        // +0.1f is to ensure that converting to intger will result in correct number
-        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
-        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
-        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
-        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
+        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
+        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
+        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
+        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
 
         triangles.Add(i);
         triangles.Add(i + 1);
@@ -324,7 +320,7 @@ public class TerrainChunk : MonoBehaviour
         triangles.Add(i + 3);
     }
 
-    private void GenerateNorthWall(int x, int z, int y, TerrainType type)
+    private void GenerateNorthWall(int x, int z, int y, TerrainTypeMaterialInfo materialInfo)
     {
         int i = vertices.Count;
 
@@ -347,11 +343,10 @@ public class TerrainChunk : MonoBehaviour
         uv0.Add(new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileYPosition() + y) * uv + uv));
         uv0.Add(new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileYPosition() + y) * uv));
 
-        // +0.1f is to ensure that converting to intger will result in correct number
-        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
-        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
-        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
-        colors.Add(new Color((float) type + 0.1f, 0, 0, 0));
+        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
+        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
+        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
+        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
 
         triangles.Add(i);
         triangles.Add(i + 2);

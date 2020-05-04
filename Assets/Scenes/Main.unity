@@ -403,8 +403,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 64522c10d7e7dd7418ff43cb53268649, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  width: 30
-  depth: 30
+  width: 100
+  depth: 100
   height: 3
 --- !u!114 &1180241472
 MonoBehaviour:
@@ -423,8 +423,8 @@ MonoBehaviour:
   tileHeight: 1.5
   terrainChunkPrefab: {fileID: 7323657082605681422, guid: 90ab42d98bfb45f4d9985b225dbc70f5,
     type: 3}
-  chunkSize: 10
-  chunkTextureSize: 30
+  chunkSize: 20
+  chunkTextureSize: 20
   grassMaterial: {fileID: 2100000, guid: 744cd630e1f21fc45852e28191be1041, type: 2}
   dirtMaterial: {fileID: 2100000, guid: b7646e23753fc6f478764a83d7e3d94d, type: 2}
   softRocksMaterial: {fileID: 2100000, guid: 59d816b66e657914483529d3b165a58a, type: 2}

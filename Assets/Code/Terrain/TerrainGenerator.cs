@@ -26,12 +26,11 @@ public class TerrainGenerator : MonoBehaviour
         // Some sample terrain
         terrain.Generate(width, depth, height);
         terrain.SetPresent(true);
-        terrain.SetType(TerrainType.None);
 
         for (int x = 0; x < width; x++) {
             for (int z = 0; z < depth; z++) {
-                terrain.SetType(new Vector3Int(x, 0, z), TerrainType.Dirt);
-                terrain.SetType(new Vector3Int(x, 1, z), TerrainType.Grass);
+                terrain.SetType(new Vector3Int(x, 0, z), TerrainType.Grass);
+                terrain.SetType(new Vector3Int(x, 1, z), TerrainType.Dirt);
                 terrain.SetType(new Vector3Int(x, 2, z), TerrainType.Grass);
             }
         }

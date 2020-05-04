@@ -1,8 +1,15 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System;
 using UnityEngine;
 
 namespace SG3D {
+
+public struct TerrainTypeMaterialInfo {
+    public TerrainType type;
+    public float smoothness;
+    public float shaderIndex;
+};
 
 // This class is responsible for displaying terrain.
 // It takes data from Terrain class and uses it to generate meshes, colliders and
@@ -33,59 +40,89 @@ public class TerrainRenderer : MonoBehaviour
     Texture2DArray terrainMetallicMaps;
     Texture2DArray terrainOcclusionMaps;
 
+    public bool useNormalMaps;
+    public bool useMetallicMaps;
+    public bool useOcclusionMaps;
+
     public Material terrainMaterial;
+    Material materialRuntimeCopy;
+
+    Dictionary<TerrainType, TerrainTypeMaterialInfo> materialInfo;
 
     public void Initialise(Terrain terrainData)
     {
         this.terrainData = terrainData;
-        PrepareTextureArrays();
+        PrepareTerrainMaterial();
     }
 
-    private void PrepareTextureArrays()
+    private void PrepareTerrainMaterial()
     {
+        materialInfo = new Dictionary<TerrainType, TerrainTypeMaterialInfo>();
+        int materialsCount = Enum.GetNames(typeof(TerrainType)).Length;
+
         // We read format properties from grass texture and assume rest is the same. It better be :)
         Texture2D grassTexture = grassMaterial.GetTexture("_BaseMap") as Texture2D;
-        Texture2D grassNormals = grassMaterial.GetTexture("_BumpMap") as Texture2D;
-        Texture2D grassMetallic = grassMaterial.GetTexture("_MetallicGlossMap") as Texture2D;
-        Texture2D grassOcclusion = grassMaterial.GetTexture("_OcclusionMap") as Texture2D;
 
-        terrainBaseTextures = new Texture2DArray(grassTexture.width, grassTexture.height, 5, grassTexture.format, false);
-        Graphics.CopyTexture(grassTexture, 0, 0, terrainBaseTextures, (int) TerrainType.Grass - 1, 0);
-        Graphics.CopyTexture(dirtMaterial.GetTexture("_BaseMap") as Texture2D, 0, 0, terrainBaseTextures, (int) TerrainType.Dirt - 1, 0);
-        Graphics.CopyTexture(softRocksMaterial.GetTexture("_BaseMap") as Texture2D, 0, 0, terrainBaseTextures, (int) TerrainType.SoftRocks - 1, 0);
-        Graphics.CopyTexture(hardRocksMaterial.GetTexture("_BaseMap") as Texture2D, 0, 0, terrainBaseTextures, (int) TerrainType.HardRocks - 1, 0);
-        Graphics.CopyTexture(sandMaterial.GetTexture("_BaseMap") as Texture2D, 0, 0, terrainBaseTextures, (int) TerrainType.Sand - 1, 0);
-
-        terrainNormalMaps = new Texture2DArray(grassNormals.width, grassNormals.height, 5, grassNormals.format, false);
-        Graphics.CopyTexture(grassNormals, 0, 0, terrainNormalMaps, (int) TerrainType.Grass - 1, 0);
-        Graphics.CopyTexture(dirtMaterial.GetTexture("_BumpMap") as Texture2D, 0, 0, terrainNormalMaps, (int) TerrainType.Dirt - 1, 0);
-        Graphics.CopyTexture(softRocksMaterial.GetTexture("_BumpMap") as Texture2D, 0, 0, terrainNormalMaps, (int) TerrainType.SoftRocks - 1, 0);
-        Graphics.CopyTexture(hardRocksMaterial.GetTexture("_BumpMap") as Texture2D, 0, 0, terrainNormalMaps, (int) TerrainType.HardRocks - 1, 0);
-        Graphics.CopyTexture(sandMaterial.GetTexture("_BumpMap") as Texture2D, 0, 0, terrainNormalMaps, (int) TerrainType.Sand - 1, 0);
-
-        terrainMetallicMaps = new Texture2DArray(grassMetallic.width, grassMetallic.height, 5, grassMetallic.format, false);
-        Graphics.CopyTexture(grassMetallic, 0, 0, terrainMetallicMaps, (int) TerrainType.Grass - 1, 0);
-        Graphics.CopyTexture(dirtMaterial.GetTexture("_MetallicGlossMap") as Texture2D, 0, 0, terrainMetallicMaps, (int) TerrainType.Dirt - 1, 0);
-        Graphics.CopyTexture(softRocksMaterial.GetTexture("_MetallicGlossMap") as Texture2D, 0, 0, terrainMetallicMaps, (int) TerrainType.SoftRocks - 1, 0);
-        Graphics.CopyTexture(hardRocksMaterial.GetTexture("_MetallicGlossMap") as Texture2D, 0, 0, terrainMetallicMaps, (int) TerrainType.HardRocks - 1, 0);
-        Graphics.CopyTexture(sandMaterial.GetTexture("_MetallicGlossMap") as Texture2D, 0, 0, terrainMetallicMaps, (int) TerrainType.Sand - 1, 0);
-
-        terrainOcclusionMaps = new Texture2DArray(grassOcclusion.width, grassOcclusion.height, 5, grassOcclusion.format, false);
-        Graphics.CopyTexture(grassOcclusion, 0, 0, terrainOcclusionMaps, (int) TerrainType.Grass - 1, 0);
-        Graphics.CopyTexture(dirtMaterial.GetTexture("_OcclusionMap") as Texture2D, 0, 0, terrainOcclusionMaps, (int) TerrainType.Dirt - 1, 0);
-        Graphics.CopyTexture(softRocksMaterial.GetTexture("_OcclusionMap") as Texture2D, 0, 0, terrainOcclusionMaps, (int) TerrainType.SoftRocks - 1, 0);
-        Graphics.CopyTexture(hardRocksMaterial.GetTexture("_OcclusionMap") as Texture2D, 0, 0, terrainOcclusionMaps, (int) TerrainType.HardRocks - 1, 0);
-        Graphics.CopyTexture(sandMaterial.GetTexture("_OcclusionMap") as Texture2D, 0, 0, terrainOcclusionMaps, (int) TerrainType.Sand - 1, 0);
-
-
-        // terrainMaterial.SetTexture("BaseTextures", terrainBaseTextures);
-
-        // Debug.Log($"Format is {texture.format}");
-        // terrainBaseTextures = new Texture2DArray(2048, 2048, 5, false);
-        var names = grassMaterial.GetTexturePropertyNames();
-        for (int i = 0; i < names.Length; i++) {
-            Debug.Log($"texture names for grass: {names[i]}");
+        if (useNormalMaps) {
+            Texture2D grassNormals = grassMaterial.GetTexture("_BumpMap") as Texture2D;
+            terrainNormalMaps = new Texture2DArray(grassNormals.width, grassNormals.height, materialsCount, grassNormals.format, false);
         }
+
+        if (useMetallicMaps) {
+            Texture2D grassMetallic = grassMaterial.GetTexture("_MetallicGlossMap") as Texture2D;
+            terrainMetallicMaps = new Texture2DArray(grassMetallic.width, grassMetallic.height, materialsCount, grassMetallic.format, false);
+        }
+
+        if (useOcclusionMaps) {
+            Texture2D grassOcclusion = grassMaterial.GetTexture("_OcclusionMap") as Texture2D;
+            terrainOcclusionMaps = new Texture2DArray(grassOcclusion.width, grassOcclusion.height, materialsCount, grassOcclusion.format, false);
+        }
+
+        terrainBaseTextures = new Texture2DArray(grassTexture.width, grassTexture.height, materialsCount, grassTexture.format, false);
+
+        ReadMaterialInfo(TerrainType.Grass, grassMaterial);
+        ReadMaterialInfo(TerrainType.Dirt, dirtMaterial);
+        ReadMaterialInfo(TerrainType.SoftRocks, softRocksMaterial);
+        ReadMaterialInfo(TerrainType.HardRocks, hardRocksMaterial);
+        ReadMaterialInfo(TerrainType.Sand, sandMaterial);
+
+        // Make a copy so we won't mess with original
+        materialRuntimeCopy = new Material(terrainMaterial);
+        materialRuntimeCopy.SetTexture("BaseTextures", terrainBaseTextures);
+
+        if (useNormalMaps) {
+            materialRuntimeCopy.SetTexture("NormalTextures", terrainNormalMaps);
+            materialRuntimeCopy.EnableKeyword("HASNORMALMAP");
+        }
+
+        if (useMetallicMaps) {
+            materialRuntimeCopy.SetTexture("MetallicTextures", terrainMetallicMaps);
+            materialRuntimeCopy.EnableKeyword("HASMETALLICMAP");
+        }
+
+        if (useOcclusionMaps) {
+            materialRuntimeCopy.SetTexture("OcclusionTextures", terrainOcclusionMaps);
+            materialRuntimeCopy.EnableKeyword("HASOCCLUSIONMAP");
+        }
+    }
+    private void ReadMaterialInfo(TerrainType type, Material material)
+    {
+        Graphics.CopyTexture(material.GetTexture("_BaseMap"), 0, 0, terrainBaseTextures, (int) type, 0);
+
+        if (useNormalMaps)
+            Graphics.CopyTexture(material.GetTexture("_BumpMap"), 0, 0, terrainNormalMaps, (int) type, 0);
+        
+        if (useMetallicMaps)
+            Graphics.CopyTexture(material.GetTexture("_MetallicGlossMap"), 0, 0, terrainMetallicMaps, (int) type, 0);
+
+        if (useOcclusionMaps)
+            Graphics.CopyTexture(material.GetTexture("_OcclusionMap"), 0, 0, terrainOcclusionMaps, (int) type, 0);
+
+        TerrainTypeMaterialInfo info;
+        info.smoothness = (useMetallicMaps) ? material.GetFloat("_Smoothness") : 0f;
+        info.type = type;
+        info.shaderIndex = (float) type + 0.1f; // +0.1f is to ensure that truncation to int will return correct number in shader
+        materialInfo[type] = info;
     }
 
     public int CreateWorld()
@@ -104,12 +141,7 @@ public class TerrainRenderer : MonoBehaviour
                 chunk.transform.localPosition = new Vector3(x * chunkSize * tileWidth, 0f, z * chunkSize * tileDepth);
                 chunk.transform.localRotation = Quaternion.identity;
                 chunk.name = $"Chunk X: {x * chunkSize} Z:{z * chunkSize}, size: {chunkSize}";
-                chunk.GetComponent<MeshRenderer>().material = terrainMaterial;
-                chunk.GetComponent<MeshRenderer>().material.SetTexture("BaseTextures", terrainBaseTextures);
-                chunk.GetComponent<MeshRenderer>().material.SetTexture("NormalTextures", terrainNormalMaps);
-                chunk.GetComponent<MeshRenderer>().material.SetTexture("MetallicTextures", terrainMetallicMaps);
-                chunk.GetComponent<MeshRenderer>().material.SetTexture("OcclusionTextures", terrainOcclusionMaps);
-                chunk.Initialise(terrainData, this, x, z, chunkSize, chunkTextureSize);
+                chunk.Initialise(terrainData, this, x, z, chunkSize, chunkTextureSize, materialRuntimeCopy);
                 chunk.CreateVoxels();
                 chunks[x, z] = chunk;
             }
@@ -153,6 +185,11 @@ public class TerrainRenderer : MonoBehaviour
     public TerrainVoxelCollider GetVoxel(Vector3Int tile)
     {
         return GetChunkForTile(tile).GetVoxel(tile);
+    }
+
+    public TerrainTypeMaterialInfo GetMaterialInfo(TerrainType type)
+    {
+        return materialInfo[type];
     }
 
     private TerrainChunk GetChunkForTile(Vector3Int tile)

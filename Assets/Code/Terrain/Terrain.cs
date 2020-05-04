@@ -6,12 +6,11 @@ using Unity.Collections;
 namespace SG3D {
 
 public enum TerrainType {
-    None = 0,
-    Grass = 1,
-    Dirt = 2,
-    SoftRocks = 3,
-    HardRocks = 4,
-    Sand = 5,
+    Grass = 0,
+    Dirt = 1,
+    SoftRocks = 2,
+    HardRocks = 3,
+    Sand = 4,
 };
 
 // This class holds data about entire terrain in SOA layout.
