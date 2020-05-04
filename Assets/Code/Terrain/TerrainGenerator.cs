@@ -2,37 +2,63 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+namespace SG3D {
+
 [RequireComponent(typeof(SG3D.TerrainRenderer))]
-[RequireComponent(typeof(MeshFilter))]
-[RequireComponent(typeof(MeshRenderer))]
 public class TerrainGenerator : MonoBehaviour
 {
     SG3D.Terrain terrain;
     SG3D.TerrainRenderer terrainRenderer;
 
-    MeshFilter meshFilter;
+    public int width;
+    public int depth;
+    public int height;
 
     void Awake()
     {
-        meshFilter = GetComponent<MeshFilter>();
         terrainRenderer = GetComponent<SG3D.TerrainRenderer>();
         terrain = new SG3D.Terrain();
+        terrainRenderer.Initialise(terrain);
     }
 
-    // Start is called before the first frame update
     void Start()
     {
-        terrain.Generate(20, 20, 2);
-        terrain.SetFilled(true);
-        terrain.SetFilled(false, 0, 1, 0);
-        terrain.SetFilled(false, 0, 2, 0);
+        // Some sample terrain
+        terrain.Generate(width, depth, height);
+        terrain.SetPresent(true);
+        terrain.SetType(TerrainType.None);
 
-        terrainRenderer.CreateWorldMesh(terrain);
-        terrainRenderer.CreateWorldTiles(terrain);
-        terrainRenderer.UpdateWorld(terrain, meshFilter);
+        for (int x = 0; x < width; x++) {
+            for (int z = 0; z < depth; z++) {
+                terrain.SetType(new Vector3Int(x, 0, z), TerrainType.Dirt);
+                terrain.SetType(new Vector3Int(x, 1, z), TerrainType.Grass);
+                terrain.SetType(new Vector3Int(x, 2, z), TerrainType.Grass);
+            }
+        }
+
+        terrainRenderer.CreateWorld();
+        terrainRenderer.UpdateWorldMesh();
+        terrainRenderer.tileClicked += OnTileClicked;
+        terrain.tilePresentChanged += OnTilePresentChanged;
     }
 
-    void Update()
+    void OnDestroy() {
+        // Required for NativeArray cleanup
+        terrainRenderer.tileClicked -= OnTileClicked;
+        terrain.tilePresentChanged -= OnTilePresentChanged;
+        terrain.Cleanup();
+    }
+
+    public void OnTileClicked(Vector3Int tile)
     {
+        terrain.SetPresent(tile, false);
     }
+
+    public void OnTilePresentChanged(Vector3Int tile, bool value)
+    {
+        terrainRenderer.GetVoxel(tile).collider.enabled = value;
+        terrainRenderer.UpdateWorldMeshForTile(tile);
+    }
+}
+
 }
