@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using Unity.Collections;
 
 namespace SG3D {
 
@@ -20,10 +21,10 @@ public class TerrainChunk : MonoBehaviour
     Terrain terrainData;
     new TerrainRenderer renderer;
 
-    List<Vector3> vertices;
-    List<int> triangles;
-    List<Vector2> uv0;
-    List<Color> colors;   // Index for texture array. Technically Color32 would be better, but I'm scared of rounding errors
+    NativeArray<Vector3> vertices;
+    NativeArray<int> triangles;
+    NativeArray<Vector2> uv0;
+    NativeArray<Color> colors;   // Index for texture array. Technically Color32 would be better, but I'm scared of rounding errors
 
     MeshCollider meshCollider;
 
@@ -46,43 +47,24 @@ public class TerrainChunk : MonoBehaviour
         GetComponent<MeshRenderer>().material = material;
 
         // Preallocate to avoid GC
-        vertices = new List<Vector3>(terrainData.terrainWidth * terrainData.terrainDepth * terrainData.terrainHeight * 4);
-        triangles = new List<int>(terrainData.terrainWidth * terrainData.terrainDepth * terrainData.terrainHeight * 6);
-        uv0 = new List<Vector2>(terrainData.terrainWidth * terrainData.terrainDepth * terrainData.terrainHeight * 4);
-        colors = new List<Color>(terrainData.terrainWidth * terrainData.terrainDepth * terrainData.terrainHeight * 4);
+        vertices = new NativeArray<Vector3>(terrainData.terrainWidth * terrainData.terrainDepth * terrainData.terrainHeight * 4, Allocator.Persistent);
+        triangles = new NativeArray<int>(terrainData.terrainWidth * terrainData.terrainDepth * terrainData.terrainHeight * 6, Allocator.Persistent);
+        uv0 = new NativeArray<Vector2>(terrainData.terrainWidth * terrainData.terrainDepth * terrainData.terrainHeight * 4, Allocator.Persistent);
+        colors = new NativeArray<Color>(terrainData.terrainWidth * terrainData.terrainDepth * terrainData.terrainHeight * 4, Allocator.Persistent);
     }
-
-    // Create all the Voxel objects. We're using them not to store data or logic handling, but mainly as  
-    // containers to BoxColliders. I'm not entirly happy with this solution but it seems to work and is quite performant
-    // (apart from the generation phase)
-    public void CreateVoxels()
+    void OnDestroy()
     {
-        // voxels = new TerrainVoxelCollider[terrainData.terrainHeight, size, size];
-
-        // for (int y = 0; y < terrainData.terrainHeight; y++) {
-        //     for (int z = 0; z < size; z++) {
-        //         for (int x = 0; x < size; x++) {
-        //             TerrainVoxelCollider voxel = Instantiate<TerrainVoxelCollider>(terrainVoxelColliderPrefab, this.transform);
-        //             voxel.transform.localPosition = new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth);
-        //             voxel.transform.localRotation = Quaternion.identity;
-        //             voxel.name = $"Voxel X: {WorldTileXPosition() + x}, Z: {WorldTileZPosition() + z}, Y: {y}";
-        //             voxel.tileX = WorldTileXPosition() + x;
-        //             voxel.tileZ = WorldTileZPosition() + z;
-        //             voxel.tileY = y;
-        //             voxel.collider = voxel.GetComponent<BoxCollider>();
-        //             voxel.collider.size = new Vector3(renderer.tileWidth, renderer.tileHeight, renderer.tileDepth);
-        //             voxel.collider.center = new Vector3(renderer.tileWidth / 2, renderer.tileHeight / 2, renderer.tileDepth / 2);
-        //             voxel.collider.enabled = terrainData.IsPresent(x, z, y);
-        //             voxels[y, z, x] = voxel;
-        //         }
-        //     }
-        // }
+        vertices.Dispose();
+        triangles.Dispose();
+        uv0.Dispose();
+        colors.Dispose();
     }
 
     // Mesh generation. It's never fun
     public void UpdateMesh()
     {
         // x/y/z
+        int index = 0;
         for (int y = 0; y < terrainData.terrainHeight; y++) {
             for (int x = 0; x < size; x++) {
                 for (int z = 0; z < size; z++) {
@@ -97,255 +79,268 @@ public class TerrainChunk : MonoBehaviour
                     TerrainTypeMaterialInfo materialInfo = renderer.GetMaterialInfo(type);
 
                     if (!terrainData.IsPresent(worldX, worldZ, worldY + 1))
-                        GenerateTopWall(x, z, y, materialInfo);
+                        index += GenerateTopWall(index, x, z, y, materialInfo);
                     
                     if (!terrainData.IsPresent(worldX, worldZ, worldY - 1))
-                        GenerateBottomWall(x, z, y, materialInfo);
+                        index += GenerateBottomWall(index, x, z, y, materialInfo);
 
                     if (!terrainData.IsPresent(worldX, worldZ - 1, worldY))
-                        GenerateSouthWall(x, z, y, materialInfo);
+                        index += GenerateSouthWall(index, x, z, y, materialInfo);
 
                     if (!terrainData.IsPresent(worldX, worldZ + 1, worldY))
-                        GenerateNorthWall(x, z, y, materialInfo);
+                        index += GenerateNorthWall(index, x, z, y, materialInfo);
 
                     if (!terrainData.IsPresent(worldX - 1, worldZ, worldY))
-                        GenerateWestWall(x, z, y, materialInfo);
+                        index += GenerateWestWall(index, x, z, y, materialInfo);
 
                     if (!terrainData.IsPresent(worldX + 1, worldZ, worldY))
-                        GenerateEastWall(x, z, y, materialInfo);
+                        index += GenerateEastWall(index, x, z, y, materialInfo);
                 }
             }
         }
 
         mesh.Clear();
-        mesh.SetVertices(vertices, 0, vertices.Count);
-        mesh.SetTriangles(triangles, 0, triangles.Count, 0);
-        mesh.SetUVs(0, uv0, 0, uv0.Count);
-        mesh.SetColors(colors, 0, colors.Count);
+        mesh.SetVertices(vertices, 0, index * 4);
+        mesh.SetIndices(triangles, 0, index * 6, MeshTopology.Triangles, 0, true);
+        mesh.SetUVs(0, uv0, 0, index * 4);
+        mesh.SetColors(colors, 0, index * 4);
         mesh.RecalculateNormals();
         meshFilter.mesh = mesh;
         meshCollider.sharedMesh = mesh;
-
-        vertices.Clear();
-        triangles.Clear();
-        uv0.Clear();
-        colors.Clear();
     }
 
-    private void GenerateTopWall(int x, int z, int y, TerrainTypeMaterialInfo materialInfo)
+    private int GenerateTopWall(int index, int x, int z, int y, TerrainTypeMaterialInfo materialInfo)
     {
-        int i = vertices.Count;
+        int i = index * 4;
+        int j = index * 6;
 
         // Looking along Y axis
         // Bottom left
-        vertices.Add(new Vector3(x * renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth));
+        vertices[i] = new Vector3(x * renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth);
 
         // Top left
-        vertices.Add(new Vector3(x * renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth));
+        vertices[i + 1] = new Vector3(x * renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth);
 
         // Top right
-        vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth));
+        vertices[i + 2] = new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth);
 
         // Bottom right
-        vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth));
+        vertices[i + 3] = new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth);
 
         float uv = 1f / textureSize;        
-        uv0.Add(new Vector2((WorldTileXPosition() + x) * uv, (WorldTileZPosition() + z) * uv));
-        uv0.Add(new Vector2((WorldTileXPosition() + x) * uv, (WorldTileZPosition() + z) * uv + uv));
-        uv0.Add(new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileZPosition() + z) * uv + uv));
-        uv0.Add(new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileZPosition() + z) * uv));
+        uv0[i] = new Vector2((WorldTileXPosition() + x) * uv, (WorldTileZPosition() + z) * uv);
+        uv0[i + 1] = new Vector2((WorldTileXPosition() + x) * uv, (WorldTileZPosition() + z) * uv + uv);
+        uv0[i + 2] = new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileZPosition() + z) * uv + uv);
+        uv0[i + 3] = new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileZPosition() + z) * uv);
 
-        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
-        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
-        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
-        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
+        colors[i] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+        colors[i + 1] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+        colors[i + 2] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+        colors[i + 3] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
 
-        triangles.Add(i);
-        triangles.Add(i + 1);
-        triangles.Add(i + 2);
-        triangles.Add(i);
-        triangles.Add(i + 2);
-        triangles.Add(i + 3);
+        triangles[j] = i;
+        triangles[j + 1] = i + 1;
+        triangles[j + 2] = i + 2;
+        triangles[j + 3] = i;
+        triangles[j + 4] = i + 2;
+        triangles[j + 5] = i + 3;
+
+        return 1;
     }
 
-    private void GenerateBottomWall(int x, int z, int y, TerrainTypeMaterialInfo materialInfo)
+    private int GenerateBottomWall(int index, int x, int z, int y, TerrainTypeMaterialInfo materialInfo)
     {
-        int i = vertices.Count;
+        int i = index * 4;
+        int j = index * 6;
 
         // Looking along Y axis
         // Bottom left
-        vertices.Add(new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth));
+        vertices[i] = new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth);
 
         // Top left
-        vertices.Add(new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth));
+        vertices[i + 1] = new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth);
 
         // Top right
-        vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth));
+        vertices[i + 2] = new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth);
 
         // Bottom right
-        vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth));
+        vertices[i + 3] = new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth);
 
         float uv = 1f / textureSize;        
-        uv0.Add(new Vector2((WorldTileXPosition() + x) * uv, (WorldTileZPosition() + z) * uv));
-        uv0.Add(new Vector2((WorldTileXPosition() + x) * uv, (WorldTileZPosition() + z) * uv + uv));
-        uv0.Add(new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileZPosition() + z) * uv + uv));
-        uv0.Add(new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileZPosition() + z) * uv));
+        uv0[i] = new Vector2((WorldTileXPosition() + x) * uv, (WorldTileZPosition() + z) * uv);
+        uv0[i + 1] = new Vector2((WorldTileXPosition() + x) * uv, (WorldTileZPosition() + z) * uv + uv);
+        uv0[i + 2] = new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileZPosition() + z) * uv + uv);
+        uv0[i + 3] = new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileZPosition() + z) * uv);
 
-        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
-        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
-        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
-        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
+        colors[i] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+        colors[i + 1] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+        colors[i + 2] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+        colors[i + 3] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
 
-        triangles.Add(i);
-        triangles.Add(i + 2);
-        triangles.Add(i + 1);
-        triangles.Add(i);
-        triangles.Add(i + 3);
-        triangles.Add(i + 2);
+        triangles[j] = i;
+        triangles[j + 1] = i + 2;
+        triangles[j + 2] = i + 1;
+        triangles[j + 3] = i;
+        triangles[j + 4] = i + 3;
+        triangles[j + 5] = i + 2;
+
+        return 1;
     }
 
-    private void GenerateWestWall(int x, int z, int y, TerrainTypeMaterialInfo materialInfo)
+    private int GenerateWestWall(int index, int x, int z, int y, TerrainTypeMaterialInfo materialInfo)
     {
-        int i = vertices.Count;
+        int i = index * 4;
+        int j = index * 6;
 
         // Looking along X axis
         // Bottom left
-        vertices.Add(new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth));
+        vertices[i] = new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth);
 
         // Top left
-        vertices.Add(new Vector3(x * renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth));
+        vertices[i + 1] = new Vector3(x * renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth);
 
         // Top right
-        vertices.Add(new Vector3(x * renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth));
+        vertices[i + 2] = new Vector3(x * renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth);
 
         // Bottom right
-        vertices.Add(new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth));
+        vertices[i + 3] = new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth);
 
         float uv = 1f / textureSize;
-        uv0.Add(new Vector2((WorldTileZPosition() + z) * uv, (WorldTileYPosition() + y) * uv));
-        uv0.Add(new Vector2((WorldTileZPosition() + z) * uv, (WorldTileYPosition() + y) * uv + uv));
-        uv0.Add(new Vector2((WorldTileZPosition() + z) * uv + uv, (WorldTileYPosition() + y) * uv + uv));
-        uv0.Add(new Vector2((WorldTileZPosition() + z) * uv + uv, (WorldTileYPosition() + y) * uv));
+        uv0[i] = new Vector2((WorldTileZPosition() + z) * uv, (WorldTileYPosition() + y) * uv);
+        uv0[i + 1] = new Vector2((WorldTileZPosition() + z) * uv, (WorldTileYPosition() + y) * uv + uv);
+        uv0[i + 2] = new Vector2((WorldTileZPosition() + z) * uv + uv, (WorldTileYPosition() + y) * uv + uv);
+        uv0[i + 3] = new Vector2((WorldTileZPosition() + z) * uv + uv, (WorldTileYPosition() + y) * uv);
 
-        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
-        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
-        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
-        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
+        colors[i] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+        colors[i + 1] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+        colors[i + 2] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+        colors[i + 3] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
 
-        triangles.Add(i);
-        triangles.Add(i + 1);
-        triangles.Add(i + 2);
-        triangles.Add(i);
-        triangles.Add(i + 2);
-        triangles.Add(i + 3);
+        triangles[j] = i;
+        triangles[j + 1] = i + 1;
+        triangles[j + 2] = i + 2;
+        triangles[j + 3] = i;
+        triangles[j + 4] = i + 2;
+        triangles[j + 5] = i + 3;
+
+        return 1;
     }
 
-    private void GenerateEastWall(int x, int z, int y, TerrainTypeMaterialInfo materialInfo)
+    private int GenerateEastWall(int index, int x, int z, int y, TerrainTypeMaterialInfo materialInfo)
     {
-        int i = vertices.Count;
+        int i = index * 4;
+        int j = index * 6;
 
         // Looking along X axis
         // Bottom left
-        vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth));
+        vertices[i] = new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth);
 
         // Top left
-        vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth));
+        vertices[i + 1] = new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth);
 
         // Top right
-        vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth));
+        vertices[i + 2] = new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth);
 
         // Bottom right
-        vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth));
+        vertices[i + 3] = new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth);
 
         float uv = 1f / textureSize;
-        uv0.Add(new Vector2((WorldTileZPosition() + z) * uv, (WorldTileYPosition() + y) * uv));
-        uv0.Add(new Vector2((WorldTileZPosition() + z) * uv, (WorldTileYPosition() + y) * uv + uv));
-        uv0.Add(new Vector2((WorldTileZPosition() + z) * uv + uv, (WorldTileYPosition() + y) * uv + uv));
-        uv0.Add(new Vector2((WorldTileZPosition() + z) * uv + uv, (WorldTileYPosition() + y) * uv));
+        uv0[i] = new Vector2((WorldTileZPosition() + z) * uv, (WorldTileYPosition() + y) * uv);
+        uv0[i + 1] = new Vector2((WorldTileZPosition() + z) * uv, (WorldTileYPosition() + y) * uv + uv);
+        uv0[i + 2] = new Vector2((WorldTileZPosition() + z) * uv + uv, (WorldTileYPosition() + y) * uv + uv);
+        uv0[i + 3] = new Vector2((WorldTileZPosition() + z) * uv + uv, (WorldTileYPosition() + y) * uv);
 
-        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
-        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
-        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
-        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
+        colors[i] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+        colors[i + 1] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+        colors[i + 2] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+        colors[i + 3] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
 
-        triangles.Add(i);
-        triangles.Add(i + 2);
-        triangles.Add(i + 1);
-        triangles.Add(i);
-        triangles.Add(i + 3);
-        triangles.Add(i + 2);
+        triangles[j] = i;
+        triangles[j + 1] = i + 2;
+        triangles[j + 2] = i + 1;
+        triangles[j + 3] = i;
+        triangles[j + 4] = i + 3;
+        triangles[j + 5] = i + 2;
+
+        return 1;
     }
 
-    private void GenerateSouthWall(int x, int z, int y, TerrainTypeMaterialInfo materialInfo)
+    private int GenerateSouthWall(int index, int x, int z, int y, TerrainTypeMaterialInfo materialInfo)
     {
-        int i = vertices.Count;
+        int i = index * 4;
+        int j = index * 6;
 
         // Looking along Z axis
         // Bottom left
-        vertices.Add(new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth));
+        vertices[i] = new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth);
 
         // Top left
-        vertices.Add(new Vector3(x * renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth));
+        vertices[i + 1] = new Vector3(x * renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth);
 
         // Top right
-        vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth));
+        vertices[i + 2] = new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth);
 
         // Bottom right
-        vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth));
+        vertices[i + 3] = new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth);
 
         float uv = 1f / textureSize;
-        uv0.Add(new Vector2((WorldTileXPosition() + x) * uv, (WorldTileYPosition() + y) * uv));
-        uv0.Add(new Vector2((WorldTileXPosition() + x) * uv, (WorldTileYPosition() + y) * uv + uv));
-        uv0.Add(new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileYPosition() + y) * uv + uv));
-        uv0.Add(new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileYPosition() + y) * uv));
+        uv0[i] = new Vector2((WorldTileXPosition() + x) * uv, (WorldTileYPosition() + y) * uv);
+        uv0[i + 1] = new Vector2((WorldTileXPosition() + x) * uv, (WorldTileYPosition() + y) * uv + uv);
+        uv0[i + 2] = new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileYPosition() + y) * uv + uv);
+        uv0[i + 3] = new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileYPosition() + y) * uv);
 
-        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
-        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
-        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
-        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
+        colors[i] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+        colors[i + 1] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+        colors[i + 2] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+        colors[i + 3] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
 
-        triangles.Add(i);
-        triangles.Add(i + 1);
-        triangles.Add(i + 2);
-        triangles.Add(i);
-        triangles.Add(i + 2);
-        triangles.Add(i + 3);
+        triangles[j] = i;
+        triangles[j + 1] = i + 1;
+        triangles[j + 2] = i + 2;
+        triangles[j + 3] = i;
+        triangles[j + 4] = i + 2;
+        triangles[j + 5] = i + 3;
+
+        return 1;
     }
 
-    private void GenerateNorthWall(int x, int z, int y, TerrainTypeMaterialInfo materialInfo)
+    private int GenerateNorthWall(int index, int x, int z, int y, TerrainTypeMaterialInfo materialInfo)
     {
-        int i = vertices.Count;
+        int i = index * 4;
+        int j = index * 6;
 
         // Looking along Z axis
         // Bottom left
-        vertices.Add(new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth));
+        vertices[i] = new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth);
 
         // Top left
-        vertices.Add(new Vector3(x * renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth));
+        vertices[i + 1] = new Vector3(x * renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth);
 
         // Top right
-        vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth));
+        vertices[i + 2] = new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth);
 
         // Bottom right
-        vertices.Add(new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth));
+        vertices[i + 3] = new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth);
 
         float uv = 1f / textureSize;
-        uv0.Add(new Vector2((WorldTileXPosition() + x) * uv, (WorldTileYPosition() + y) * uv));
-        uv0.Add(new Vector2((WorldTileXPosition() + x) * uv, (WorldTileYPosition() + y) * uv + uv));
-        uv0.Add(new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileYPosition() + y) * uv + uv));
-        uv0.Add(new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileYPosition() + y) * uv));
+        uv0[i] = new Vector2((WorldTileXPosition() + x) * uv, (WorldTileYPosition() + y) * uv);
+        uv0[i + 1] = new Vector2((WorldTileXPosition() + x) * uv, (WorldTileYPosition() + y) * uv + uv);
+        uv0[i + 2] = new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileYPosition() + y) * uv + uv);
+        uv0[i + 3] = new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileYPosition() + y) * uv);
 
-        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
-        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
-        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
-        colors.Add(new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0));
+        colors[i] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+        colors[i + 1] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+        colors[i + 2] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+        colors[i + 3] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
 
-        triangles.Add(i);
-        triangles.Add(i + 2);
-        triangles.Add(i + 1);
-        triangles.Add(i);
-        triangles.Add(i + 3);
-        triangles.Add(i + 2);
+        triangles[j] = i;
+        triangles[j + 1] = i + 2;
+        triangles[j + 2] = i + 1;
+        triangles[j + 3] = i;
+        triangles[j + 4] = i + 3;
+        triangles[j + 5] = i + 2;
+
+        return 1;
     }    
 
     // Returns X coordinate of our (0,0) tile in the world

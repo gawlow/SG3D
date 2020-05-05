@@ -142,7 +142,6 @@ public class TerrainRenderer : MonoBehaviour
                 chunk.transform.localRotation = Quaternion.identity;
                 chunk.name = $"Chunk X: {x * chunkSize} Z:{z * chunkSize}, size: {chunkSize}";
                 chunk.Initialise(terrainData, this, x, z, chunkSize, chunkTextureSize, materialRuntimeCopy);
-                chunk.CreateVoxels();
                 chunks[x, z] = chunk;
                 yield return null;
             }
