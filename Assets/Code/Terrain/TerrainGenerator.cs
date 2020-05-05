@@ -35,10 +35,11 @@ public class TerrainGenerator : MonoBehaviour
             }
         }
 
-        terrainRenderer.CreateWorld();
-        terrainRenderer.UpdateWorldMesh();
         terrainRenderer.tileClicked += OnTileClicked;
         terrain.tilePresentChanged += OnTilePresentChanged;
+
+        StartCoroutine(terrainRenderer.CreateWorld());
+        StartCoroutine(terrainRenderer.UpdateWorldMesh());
     }
 
     void OnDestroy() {
@@ -55,7 +56,6 @@ public class TerrainGenerator : MonoBehaviour
 
     public void OnTilePresentChanged(Vector3Int tile, bool value)
     {
-        terrainRenderer.GetVoxel(tile).collider.enabled = value;
         terrainRenderer.UpdateWorldMeshForTile(tile);
     }
 }

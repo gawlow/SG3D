@@ -68,6 +68,11 @@ public class Terrain
         tilePresentChanged?.Invoke(tile, value);
     }
 
+    public bool IsPresent(Vector3Int tile)
+    {
+        return IsPresent(tile.x, tile.z, tile.y);
+    }
+
     public bool IsPresent(int width, int depth, int height)
     {
         if (width < 0 || width >= terrainWidth)
@@ -94,7 +99,7 @@ public class Terrain
     public void SetType(Vector3Int tile, TerrainType value)
     {
         int index = GetArrayIndex(tile.x, tile.z, tile.y);
-        Debug.Assert(index < present.Length);
+        Debug.Assert(index < present.Length, tile);
 
         type[index] = value;
         tileTypeChanged?.Invoke(tile, value);

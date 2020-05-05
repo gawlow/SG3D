@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 7323657082605681422}
   - component: {fileID: 703746219600566930}
   - component: {fileID: 5877805955863902404}
+  - component: {fileID: 7822854042352796406}
   m_Layer: 0
   m_Name: TerrainChunk
   m_TagString: Untagged
@@ -49,8 +50,6 @@ MonoBehaviour:
   chunkZ: 0
   size: 0
   textureSize: 0
-  terrainVoxelColliderPrefab: {fileID: 1977862530606256284, guid: 0c498e6e31bb8974095d99c250681c3c,
-    type: 3}
 --- !u!33 &703746219600566930
 MeshFilter:
   m_ObjectHideFlags: 0
@@ -98,3 +97,17 @@ MeshRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
+--- !u!64 &7822854042352796406
+MeshCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6027348277450262220}
+  m_Material: {fileID: 0}
+  m_IsTrigger: 0
+  m_Enabled: 1
+  serializedVersion: 4
+  m_Convex: 0
+  m_CookingOptions: -1
+  m_Mesh: {fileID: 0}

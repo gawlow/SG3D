@@ -125,7 +125,7 @@ public class TerrainRenderer : MonoBehaviour
         materialInfo[type] = info;
     }
 
-    public int CreateWorld()
+    public IEnumerator CreateWorld()
     {
         // Because map can be really large, generating a single mesh is a no-go, as updates to it would take too
         // much time. So we divide world into equaly sized chunks, slicing the world along the X and Z coordinates 
@@ -144,18 +144,18 @@ public class TerrainRenderer : MonoBehaviour
                 chunk.Initialise(terrainData, this, x, z, chunkSize, chunkTextureSize, materialRuntimeCopy);
                 chunk.CreateVoxels();
                 chunks[x, z] = chunk;
+                yield return null;
             }
         }
-
-        return width * depth;
     }
 
     // This updates entire world, should be called only on startup really
-    public void UpdateWorldMesh()
+    public IEnumerator UpdateWorldMesh()
     {
         for (int x = 0; x < chunks.GetLength(0); x++) {
             for (int z = 0; z < chunks.GetLength(1); z++) {
                 chunks[x, z].UpdateMesh();
+                yield return null;
             }
         }
     }
@@ -182,11 +182,6 @@ public class TerrainRenderer : MonoBehaviour
         }
     }
 
-    public TerrainVoxelCollider GetVoxel(Vector3Int tile)
-    {
-        return GetChunkForTile(tile).GetVoxel(tile);
-    }
-
     public TerrainTypeMaterialInfo GetMaterialInfo(TerrainType type)
     {
         return materialInfo[type];
@@ -197,6 +192,17 @@ public class TerrainRenderer : MonoBehaviour
         return chunks[tile.x / chunkSize, tile.z / chunkSize];
     }
 
+    private Vector3Int WorldToTileCoordinates(Vector3 tile)
+    {
+        Vector3Int result = new Vector3Int(
+            Mathf.FloorToInt(Mathf.Clamp(tile.x, 0f, terrainData.terrainWidth * tileWidth) / tileWidth),
+            Mathf.FloorToInt(Mathf.Clamp(tile.y, 0f, terrainData.terrainHeight * tileHeight) / tileHeight),
+            Mathf.FloorToInt(Mathf.Clamp(tile.z, 0f, terrainData.terrainDepth * tileDepth) / tileDepth)
+        );
+
+        return result;
+    }
+
     void Update()
     {
         // Detection of clicking on tiles
@@ -205,9 +211,34 @@ public class TerrainRenderer : MonoBehaviour
             RaycastHit hit;
 
             if (Physics.Raycast(ray, out hit, 100f)) {
-                TerrainVoxelCollider voxel = hit.collider.GetComponent<TerrainVoxelCollider>();
-                if (voxel)
-                    tileClicked?.Invoke(new Vector3Int(voxel.tileX, voxel.tileY, voxel.tileZ));
+                Vector3Int clickedTile = WorldToTileCoordinates(hit.point);
+
+                // If tile is not present, it means that we probably clicked on tile boundary and need to guess
+                // the correct one. Check all neighbours within 0.01f unit of click coordinates
+                if (!terrainData.IsPresent(clickedTile)) {
+                    float[] offsets = new float[]{-0.01f, 0f, 0.01f};
+
+                    foreach (float x in offsets) {
+                        foreach (float y in offsets) {
+                            foreach (float z in offsets) {
+                                Vector3Int possibleTile = WorldToTileCoordinates(new Vector3(hit.point.x + x, hit.point.y + y, hit.point.z + z));
+                                if (terrainData.IsPresent(possibleTile)) {
+                                    Debug.Log($"Tile click deduction guessed {possibleTile}");
+                                    clickedTile = possibleTile;
+                                    goto Out;
+                                }
+                            }
+                        }
+                    }
+                }
+
+            Out:
+                if (!terrainData.IsPresent(clickedTile)) {
+                    Debug.Log($"Can't figure out clicked tile correctly for {hit.point}");
+                } else {
+                    Debug.Log($"Detected hit for {hit.collider.name} at {hit.point} (UV {hit.textureCoord}) = {clickedTile}");
+                    tileClicked?.Invoke(clickedTile);
+                }
             }
         }
     }

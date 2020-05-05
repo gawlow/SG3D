@@ -15,7 +15,6 @@ public class TerrainChunk : MonoBehaviour
     public int size;            // horizontal dimensions of chunk
     public int textureSize;   // spread texture over how many tiles
 
-    public TerrainVoxelCollider terrainVoxelColliderPrefab;
     MeshFilter meshFilter;
     Mesh mesh;
     Terrain terrainData;
@@ -26,11 +25,12 @@ public class TerrainChunk : MonoBehaviour
     List<Vector2> uv0;
     List<Color> colors;   // Index for texture array. Technically Color32 would be better, but I'm scared of rounding errors
 
-    TerrainVoxelCollider[,,] voxels;
+    MeshCollider meshCollider;
 
     void Awake()
     {
         meshFilter = GetComponent<MeshFilter>();
+        meshCollider = GetComponent<MeshCollider>();
         mesh = new Mesh();
     }
 
@@ -52,50 +52,36 @@ public class TerrainChunk : MonoBehaviour
         colors = new List<Color>(terrainData.terrainWidth * terrainData.terrainDepth * terrainData.terrainHeight * 4);
     }
 
-    // Get our Voxel object for given tile. Note that 'tile' refers to world location, not local chunk location
-    public TerrainVoxelCollider GetVoxel(Vector3Int tile)
-    {
-        return voxels[tile.y, tile.z - WorldTileZPosition(), tile.x - WorldTileXPosition()];
-    }
-
     // Create all the Voxel objects. We're using them not to store data or logic handling, but mainly as  
     // containers to BoxColliders. I'm not entirly happy with this solution but it seems to work and is quite performant
     // (apart from the generation phase)
     public void CreateVoxels()
     {
-        voxels = new TerrainVoxelCollider[terrainData.terrainHeight, size, size];
+        // voxels = new TerrainVoxelCollider[terrainData.terrainHeight, size, size];
 
-        for (int y = 0; y < terrainData.terrainHeight; y++) {
-            for (int z = 0; z < size; z++) {
-                for (int x = 0; x < size; x++) {
-                    TerrainVoxelCollider voxel = Instantiate<TerrainVoxelCollider>(terrainVoxelColliderPrefab, this.transform);
-                    voxel.transform.localPosition = new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth);
-                    voxel.transform.localRotation = Quaternion.identity;
-                    voxel.name = $"Voxel X: {WorldTileXPosition() + x}, Z: {WorldTileZPosition() + z}, Y: {y}";
-                    voxel.tileX = WorldTileXPosition() + x;
-                    voxel.tileZ = WorldTileZPosition() + z;
-                    voxel.tileY = y;
-                    voxel.collider = voxel.GetComponent<BoxCollider>();
-                    voxel.collider.size = new Vector3(renderer.tileWidth, renderer.tileHeight, renderer.tileDepth);
-                    voxel.collider.center = new Vector3(renderer.tileWidth / 2, renderer.tileHeight / 2, renderer.tileDepth / 2);
-                    voxel.collider.enabled = terrainData.IsPresent(x, z, y);
-                    voxels[y, z, x] = voxel;
-                }
-            }
-        }
+        // for (int y = 0; y < terrainData.terrainHeight; y++) {
+        //     for (int z = 0; z < size; z++) {
+        //         for (int x = 0; x < size; x++) {
+        //             TerrainVoxelCollider voxel = Instantiate<TerrainVoxelCollider>(terrainVoxelColliderPrefab, this.transform);
+        //             voxel.transform.localPosition = new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth);
+        //             voxel.transform.localRotation = Quaternion.identity;
+        //             voxel.name = $"Voxel X: {WorldTileXPosition() + x}, Z: {WorldTileZPosition() + z}, Y: {y}";
+        //             voxel.tileX = WorldTileXPosition() + x;
+        //             voxel.tileZ = WorldTileZPosition() + z;
+        //             voxel.tileY = y;
+        //             voxel.collider = voxel.GetComponent<BoxCollider>();
+        //             voxel.collider.size = new Vector3(renderer.tileWidth, renderer.tileHeight, renderer.tileDepth);
+        //             voxel.collider.center = new Vector3(renderer.tileWidth / 2, renderer.tileHeight / 2, renderer.tileDepth / 2);
+        //             voxel.collider.enabled = terrainData.IsPresent(x, z, y);
+        //             voxels[y, z, x] = voxel;
+        //         }
+        //     }
+        // }
     }
 
     // Mesh generation. It's never fun
     public void UpdateMesh()
     {
-        float t = Time.realtimeSinceStartup;
-
-        // int i = 0, j = 0;
-        vertices.Clear();
-        triangles.Clear();
-        uv0.Clear();
-        colors.Clear();
-
         // x/y/z
         for (int y = 0; y < terrainData.terrainHeight; y++) {
             for (int x = 0; x < size; x++) {
@@ -138,6 +124,12 @@ public class TerrainChunk : MonoBehaviour
         mesh.SetColors(colors, 0, colors.Count);
         mesh.RecalculateNormals();
         meshFilter.mesh = mesh;
+        meshCollider.sharedMesh = mesh;
+
+        vertices.Clear();
+        triangles.Clear();
+        uv0.Clear();
+        colors.Clear();
     }
 
     private void GenerateTopWall(int x, int z, int y, TerrainTypeMaterialInfo materialInfo)
