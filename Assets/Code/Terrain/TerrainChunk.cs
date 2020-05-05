@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using Unity.Collections;
+using Unity.Jobs;
 
 namespace SG3D {
 
@@ -20,11 +21,6 @@ public class TerrainChunk : MonoBehaviour
     Mesh mesh;
     Terrain terrainData;
     new TerrainRenderer renderer;
-
-    NativeArray<Vector3> vertices;
-    NativeArray<int> triangles;
-    NativeArray<Vector2> uv0;
-    NativeArray<Color> colors;   // Index for texture array. Technically Color32 would be better, but I'm scared of rounding errors
 
     MeshCollider meshCollider;
 
@@ -45,320 +41,18 @@ public class TerrainChunk : MonoBehaviour
         this.textureSize = textureSize;
 
         GetComponent<MeshRenderer>().material = material;
-
-        // Preallocate to avoid GC
-        vertices = new NativeArray<Vector3>(terrainData.terrainWidth * terrainData.terrainDepth * terrainData.terrainHeight * 4, Allocator.Persistent);
-        triangles = new NativeArray<int>(terrainData.terrainWidth * terrainData.terrainDepth * terrainData.terrainHeight * 6, Allocator.Persistent);
-        uv0 = new NativeArray<Vector2>(terrainData.terrainWidth * terrainData.terrainDepth * terrainData.terrainHeight * 4, Allocator.Persistent);
-        colors = new NativeArray<Color>(terrainData.terrainWidth * terrainData.terrainDepth * terrainData.terrainHeight * 4, Allocator.Persistent);
-    }
-    void OnDestroy()
-    {
-        vertices.Dispose();
-        triangles.Dispose();
-        uv0.Dispose();
-        colors.Dispose();
     }
 
-    // Mesh generation. It's never fun
-    public void UpdateMesh()
+    public void UpdateMesh(int index, NativeArray<Vector3> vertices, NativeArray<int> indices, NativeArray<Vector2> uv0, NativeArray<Color> colors)
     {
-        // x/y/z
-        int index = 0;
-        for (int y = 0; y < terrainData.terrainHeight; y++) {
-            for (int x = 0; x < size; x++) {
-                for (int z = 0; z < size; z++) {
-                    int worldX = WorldTileXPosition() + x;
-                    int worldZ = WorldTileZPosition() + z;
-                    int worldY = y;
-
-                    if (!terrainData.IsPresent(worldX, worldZ, worldY))
-                        continue;
-
-                    TerrainType type = terrainData.GetType(worldX, worldZ, worldY);
-                    TerrainTypeMaterialInfo materialInfo = renderer.GetMaterialInfo(type);
-
-                    if (!terrainData.IsPresent(worldX, worldZ, worldY + 1))
-                        index += GenerateTopWall(index, x, z, y, materialInfo);
-                    
-                    if (!terrainData.IsPresent(worldX, worldZ, worldY - 1))
-                        index += GenerateBottomWall(index, x, z, y, materialInfo);
-
-                    if (!terrainData.IsPresent(worldX, worldZ - 1, worldY))
-                        index += GenerateSouthWall(index, x, z, y, materialInfo);
-
-                    if (!terrainData.IsPresent(worldX, worldZ + 1, worldY))
-                        index += GenerateNorthWall(index, x, z, y, materialInfo);
-
-                    if (!terrainData.IsPresent(worldX - 1, worldZ, worldY))
-                        index += GenerateWestWall(index, x, z, y, materialInfo);
-
-                    if (!terrainData.IsPresent(worldX + 1, worldZ, worldY))
-                        index += GenerateEastWall(index, x, z, y, materialInfo);
-                }
-            }
-        }
-
         mesh.Clear();
         mesh.SetVertices(vertices, 0, index * 4);
-        mesh.SetIndices(triangles, 0, index * 6, MeshTopology.Triangles, 0, true);
+        mesh.SetIndices(indices, 0, index * 6, MeshTopology.Triangles, 0, true);
         mesh.SetUVs(0, uv0, 0, index * 4);
         mesh.SetColors(colors, 0, index * 4);
         mesh.RecalculateNormals();
         meshFilter.mesh = mesh;
         meshCollider.sharedMesh = mesh;
-    }
-
-    private int GenerateTopWall(int index, int x, int z, int y, TerrainTypeMaterialInfo materialInfo)
-    {
-        int i = index * 4;
-        int j = index * 6;
-
-        // Looking along Y axis
-        // Bottom left
-        vertices[i] = new Vector3(x * renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth);
-
-        // Top left
-        vertices[i + 1] = new Vector3(x * renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth);
-
-        // Top right
-        vertices[i + 2] = new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth);
-
-        // Bottom right
-        vertices[i + 3] = new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth);
-
-        float uv = 1f / textureSize;        
-        uv0[i] = new Vector2((WorldTileXPosition() + x) * uv, (WorldTileZPosition() + z) * uv);
-        uv0[i + 1] = new Vector2((WorldTileXPosition() + x) * uv, (WorldTileZPosition() + z) * uv + uv);
-        uv0[i + 2] = new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileZPosition() + z) * uv + uv);
-        uv0[i + 3] = new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileZPosition() + z) * uv);
-
-        colors[i] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
-        colors[i + 1] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
-        colors[i + 2] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
-        colors[i + 3] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
-
-        triangles[j] = i;
-        triangles[j + 1] = i + 1;
-        triangles[j + 2] = i + 2;
-        triangles[j + 3] = i;
-        triangles[j + 4] = i + 2;
-        triangles[j + 5] = i + 3;
-
-        return 1;
-    }
-
-    private int GenerateBottomWall(int index, int x, int z, int y, TerrainTypeMaterialInfo materialInfo)
-    {
-        int i = index * 4;
-        int j = index * 6;
-
-        // Looking along Y axis
-        // Bottom left
-        vertices[i] = new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth);
-
-        // Top left
-        vertices[i + 1] = new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth);
-
-        // Top right
-        vertices[i + 2] = new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth);
-
-        // Bottom right
-        vertices[i + 3] = new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth);
-
-        float uv = 1f / textureSize;        
-        uv0[i] = new Vector2((WorldTileXPosition() + x) * uv, (WorldTileZPosition() + z) * uv);
-        uv0[i + 1] = new Vector2((WorldTileXPosition() + x) * uv, (WorldTileZPosition() + z) * uv + uv);
-        uv0[i + 2] = new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileZPosition() + z) * uv + uv);
-        uv0[i + 3] = new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileZPosition() + z) * uv);
-
-        colors[i] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
-        colors[i + 1] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
-        colors[i + 2] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
-        colors[i + 3] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
-
-        triangles[j] = i;
-        triangles[j + 1] = i + 2;
-        triangles[j + 2] = i + 1;
-        triangles[j + 3] = i;
-        triangles[j + 4] = i + 3;
-        triangles[j + 5] = i + 2;
-
-        return 1;
-    }
-
-    private int GenerateWestWall(int index, int x, int z, int y, TerrainTypeMaterialInfo materialInfo)
-    {
-        int i = index * 4;
-        int j = index * 6;
-
-        // Looking along X axis
-        // Bottom left
-        vertices[i] = new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth);
-
-        // Top left
-        vertices[i + 1] = new Vector3(x * renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth);
-
-        // Top right
-        vertices[i + 2] = new Vector3(x * renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth);
-
-        // Bottom right
-        vertices[i + 3] = new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth);
-
-        float uv = 1f / textureSize;
-        uv0[i] = new Vector2((WorldTileZPosition() + z) * uv, (WorldTileYPosition() + y) * uv);
-        uv0[i + 1] = new Vector2((WorldTileZPosition() + z) * uv, (WorldTileYPosition() + y) * uv + uv);
-        uv0[i + 2] = new Vector2((WorldTileZPosition() + z) * uv + uv, (WorldTileYPosition() + y) * uv + uv);
-        uv0[i + 3] = new Vector2((WorldTileZPosition() + z) * uv + uv, (WorldTileYPosition() + y) * uv);
-
-        colors[i] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
-        colors[i + 1] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
-        colors[i + 2] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
-        colors[i + 3] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
-
-        triangles[j] = i;
-        triangles[j + 1] = i + 1;
-        triangles[j + 2] = i + 2;
-        triangles[j + 3] = i;
-        triangles[j + 4] = i + 2;
-        triangles[j + 5] = i + 3;
-
-        return 1;
-    }
-
-    private int GenerateEastWall(int index, int x, int z, int y, TerrainTypeMaterialInfo materialInfo)
-    {
-        int i = index * 4;
-        int j = index * 6;
-
-        // Looking along X axis
-        // Bottom left
-        vertices[i] = new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth);
-
-        // Top left
-        vertices[i + 1] = new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth);
-
-        // Top right
-        vertices[i + 2] = new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth);
-
-        // Bottom right
-        vertices[i + 3] = new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth);
-
-        float uv = 1f / textureSize;
-        uv0[i] = new Vector2((WorldTileZPosition() + z) * uv, (WorldTileYPosition() + y) * uv);
-        uv0[i + 1] = new Vector2((WorldTileZPosition() + z) * uv, (WorldTileYPosition() + y) * uv + uv);
-        uv0[i + 2] = new Vector2((WorldTileZPosition() + z) * uv + uv, (WorldTileYPosition() + y) * uv + uv);
-        uv0[i + 3] = new Vector2((WorldTileZPosition() + z) * uv + uv, (WorldTileYPosition() + y) * uv);
-
-        colors[i] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
-        colors[i + 1] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
-        colors[i + 2] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
-        colors[i + 3] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
-
-        triangles[j] = i;
-        triangles[j + 1] = i + 2;
-        triangles[j + 2] = i + 1;
-        triangles[j + 3] = i;
-        triangles[j + 4] = i + 3;
-        triangles[j + 5] = i + 2;
-
-        return 1;
-    }
-
-    private int GenerateSouthWall(int index, int x, int z, int y, TerrainTypeMaterialInfo materialInfo)
-    {
-        int i = index * 4;
-        int j = index * 6;
-
-        // Looking along Z axis
-        // Bottom left
-        vertices[i] = new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth);
-
-        // Top left
-        vertices[i + 1] = new Vector3(x * renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth);
-
-        // Top right
-        vertices[i + 2] = new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth);
-
-        // Bottom right
-        vertices[i + 3] = new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth);
-
-        float uv = 1f / textureSize;
-        uv0[i] = new Vector2((WorldTileXPosition() + x) * uv, (WorldTileYPosition() + y) * uv);
-        uv0[i + 1] = new Vector2((WorldTileXPosition() + x) * uv, (WorldTileYPosition() + y) * uv + uv);
-        uv0[i + 2] = new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileYPosition() + y) * uv + uv);
-        uv0[i + 3] = new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileYPosition() + y) * uv);
-
-        colors[i] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
-        colors[i + 1] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
-        colors[i + 2] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
-        colors[i + 3] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
-
-        triangles[j] = i;
-        triangles[j + 1] = i + 1;
-        triangles[j + 2] = i + 2;
-        triangles[j + 3] = i;
-        triangles[j + 4] = i + 2;
-        triangles[j + 5] = i + 3;
-
-        return 1;
-    }
-
-    private int GenerateNorthWall(int index, int x, int z, int y, TerrainTypeMaterialInfo materialInfo)
-    {
-        int i = index * 4;
-        int j = index * 6;
-
-        // Looking along Z axis
-        // Bottom left
-        vertices[i] = new Vector3(x * renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth);
-
-        // Top left
-        vertices[i + 1] = new Vector3(x * renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth);
-
-        // Top right
-        vertices[i + 2] = new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight + renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth);
-
-        // Bottom right
-        vertices[i + 3] = new Vector3(x * renderer.tileWidth + renderer.tileWidth, y * renderer.tileHeight, z * renderer.tileDepth + renderer.tileDepth);
-
-        float uv = 1f / textureSize;
-        uv0[i] = new Vector2((WorldTileXPosition() + x) * uv, (WorldTileYPosition() + y) * uv);
-        uv0[i + 1] = new Vector2((WorldTileXPosition() + x) * uv, (WorldTileYPosition() + y) * uv + uv);
-        uv0[i + 2] = new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileYPosition() + y) * uv + uv);
-        uv0[i + 3] = new Vector2((WorldTileXPosition() + x) * uv + uv, (WorldTileYPosition() + y) * uv);
-
-        colors[i] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
-        colors[i + 1] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
-        colors[i + 2] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
-        colors[i + 3] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
-
-        triangles[j] = i;
-        triangles[j + 1] = i + 2;
-        triangles[j + 2] = i + 1;
-        triangles[j + 3] = i;
-        triangles[j + 4] = i + 3;
-        triangles[j + 5] = i + 2;
-
-        return 1;
-    }    
-
-    // Returns X coordinate of our (0,0) tile in the world
-    private int WorldTileXPosition()
-    {
-        return size * chunkX;
-    }
-
-    // Returns Z coordinate of our (0,0) tile in the world
-    private int WorldTileZPosition()
-    {
-        return size * chunkZ;
-    }
-
-    // Placerholder just in case
-    private int WorldTileYPosition()
-    {
-        return 0;
     }
 
     void OnDrawGizmosSelected()
@@ -368,6 +62,306 @@ public class TerrainChunk : MonoBehaviour
 
         Gizmos.color = Color.yellow;
         Gizmos.DrawWireCube(position, new Vector3(size * renderer.tileWidth, terrainData.terrainHeight * renderer.tileHeight, size * renderer.tileDepth));
+    }
+
+    public struct UpdateMeshJob : IJob
+    {
+        public int chunkX;
+        public int chunkZ;
+        public Vector3Int worldSize;
+        public Vector3 tileSize;
+        public Vector3Int chunkWorldPosition;
+        public int chunkSize;
+        public int textureSize;
+        public NativeArray<Vector3> vertices;
+        public NativeArray<int> triangles;
+        public NativeArray<Vector2> uv0;
+        public NativeArray<Color> colors;
+        public NativeArray<int> counts;
+        [ReadOnly] public NativeArray<bool> present;
+        [ReadOnly] public NativeArray<TerrainType> type;
+        [ReadOnly] public NativeHashMap<int, TerrainTypeMaterialInfo> materials;
+
+        public void Execute()
+        {
+            GenerateMesh();
+        }
+
+        // Mesh generation. It's never fun
+        private void GenerateMesh()
+        {
+            // x/y/z
+            int index = 0;
+            for (int y = 0; y < worldSize.y; y++) {
+                for (int x = 0; x < chunkSize; x++) {
+                    for (int z = 0; z < chunkSize; z++) {
+                        Vector3Int localPosition = new Vector3Int(x, y, z);
+                        Vector3Int worldPosition = chunkWorldPosition + localPosition;
+
+                        if (!Terrain.IsPresent(worldPosition, worldSize, present))
+                            continue;
+
+                        TerrainType tileType = Terrain.GetType(worldPosition, worldSize, type);
+                        TerrainTypeMaterialInfo materialInfo = materials[(int) tileType];
+
+                        if (!Terrain.IsPresent(new Vector3Int(worldPosition.x, worldPosition.y + 1, worldPosition.z), worldSize, present))
+                            index += GenerateTopWall(index, worldPosition, localPosition, materialInfo);
+                        
+                        if (!Terrain.IsPresent(new Vector3Int(worldPosition.x, worldPosition.y - 1, worldPosition.z), worldSize, present))
+                            index += GenerateBottomWall(index, worldPosition, localPosition, materialInfo);
+
+                        if (!Terrain.IsPresent(new Vector3Int(worldPosition.x, worldPosition.y, worldPosition.z - 1), worldSize, present))
+                            index += GenerateSouthWall(index, worldPosition, localPosition, materialInfo);
+
+                        if (!Terrain.IsPresent(new Vector3Int(worldPosition.x, worldPosition.y, worldPosition.z + 1), worldSize, present))
+                            index += GenerateNorthWall(index, worldPosition, localPosition, materialInfo);
+
+                        if (!Terrain.IsPresent(new Vector3Int(worldPosition.x - 1, worldPosition.y, worldPosition.z), worldSize, present))
+                            index += GenerateWestWall(index, worldPosition, localPosition, materialInfo);
+
+                        if (!Terrain.IsPresent(new Vector3Int(worldPosition.x + 1, worldPosition.y, worldPosition.z), worldSize, present))
+                            index += GenerateEastWall(index, worldPosition, localPosition, materialInfo);
+                    }
+                }
+            }
+
+            counts[0] = index;
+        }
+
+        private int GenerateTopWall(int index, Vector3Int worldPosition, Vector3Int chunkPosition, TerrainTypeMaterialInfo materialInfo)
+        {
+            int i = index * 4;
+            int j = index * 6;
+
+            // Looking along Y axis
+            // Bottom left
+            vertices[i] = new Vector3(chunkPosition.x * tileSize.x, chunkPosition.y * tileSize.y + tileSize.y, chunkPosition.z * tileSize.z);
+
+            // Top left
+            vertices[i + 1] = new Vector3(chunkPosition.x * tileSize.x, chunkPosition.y * tileSize.y + tileSize.y, chunkPosition.z * tileSize.z + tileSize.z);
+
+            // Top right
+            vertices[i + 2] = new Vector3(chunkPosition.x * tileSize.x + tileSize.x, chunkPosition.y * tileSize.y + tileSize.y, chunkPosition.z * tileSize.z + tileSize.z);
+
+            // Bottom right
+            vertices[i + 3] = new Vector3(chunkPosition.x * tileSize.x + tileSize.x, chunkPosition.y * tileSize.y + tileSize.y, chunkPosition.z * tileSize.z);
+
+            float uv = 1f / textureSize;        
+            uv0[i] = new Vector2(worldPosition.x * uv, worldPosition.z * uv);
+            uv0[i + 1] = new Vector2(worldPosition.x * uv, worldPosition.z * uv + uv);
+            uv0[i + 2] = new Vector2(worldPosition.x * uv + uv, worldPosition.z * uv + uv);
+            uv0[i + 3] = new Vector2(worldPosition.x * uv + uv, worldPosition.z * uv);
+
+            colors[i] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+            colors[i + 1] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+            colors[i + 2] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+            colors[i + 3] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+
+            triangles[j] = i;
+            triangles[j + 1] = i + 1;
+            triangles[j + 2] = i + 2;
+            triangles[j + 3] = i;
+            triangles[j + 4] = i + 2;
+            triangles[j + 5] = i + 3;
+
+            return 1;
+        }
+
+        private int GenerateBottomWall(int index, Vector3Int worldPosition, Vector3Int chunkPosition, TerrainTypeMaterialInfo materialInfo)
+        {
+            int i = index * 4;
+            int j = index * 6;
+
+            // Looking along Y axis
+            // Bottom left
+            vertices[i] = new Vector3(chunkPosition.x * tileSize.x, chunkPosition.y * tileSize.y, chunkPosition.z * tileSize.z);
+
+            // Top left
+            vertices[i + 1] = new Vector3(chunkPosition.x * tileSize.x, chunkPosition.y * tileSize.y, chunkPosition.z * tileSize.z + tileSize.z);
+
+            // Top right
+            vertices[i + 2] = new Vector3(chunkPosition.x * tileSize.x + tileSize.x, chunkPosition.y * tileSize.y, chunkPosition.z * tileSize.z + tileSize.z);
+
+            // Bottom right
+            vertices[i + 3] = new Vector3(chunkPosition.x * tileSize.x + tileSize.x, chunkPosition.y * tileSize.y, chunkPosition.z * tileSize.z);
+
+            float uv = 1f / textureSize;        
+            uv0[i] = new Vector2(worldPosition.x * uv, worldPosition.z * uv);
+            uv0[i + 1] = new Vector2(worldPosition.x * uv, worldPosition.z * uv + uv);
+            uv0[i + 2] = new Vector2(worldPosition.x * uv + uv, worldPosition.z * uv + uv);
+            uv0[i + 3] = new Vector2(worldPosition.x * uv + uv, worldPosition.z * uv);
+
+            colors[i] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+            colors[i + 1] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+            colors[i + 2] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+            colors[i + 3] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+
+            triangles[j] = i;
+            triangles[j + 1] = i + 2;
+            triangles[j + 2] = i + 1;
+            triangles[j + 3] = i;
+            triangles[j + 4] = i + 3;
+            triangles[j + 5] = i + 2;
+
+            return 1;
+        }
+
+        private int GenerateWestWall(int index, Vector3Int worldPosition, Vector3Int chunkPosition, TerrainTypeMaterialInfo materialInfo)
+        {
+            int i = index * 4;
+            int j = index * 6;
+
+            // Looking along X axis
+            // Bottom left
+            vertices[i] = new Vector3(chunkPosition.x * tileSize.x, chunkPosition.y * tileSize.y, chunkPosition.z * tileSize.z + tileSize.z);
+
+            // Top left
+            vertices[i + 1] = new Vector3(chunkPosition.x * tileSize.x, chunkPosition.y * tileSize.y + tileSize.y, chunkPosition.z * tileSize.z + tileSize.z);
+
+            // Top right
+            vertices[i + 2] = new Vector3(chunkPosition.x * tileSize.x, chunkPosition.y * tileSize.y + tileSize.y, chunkPosition.z * tileSize.z);
+
+            // Bottom right
+            vertices[i + 3] = new Vector3(chunkPosition.x * tileSize.x, chunkPosition.y * tileSize.y, chunkPosition.z * tileSize.z);
+
+            float uv = 1f / textureSize;
+            uv0[i] = new Vector2(worldPosition.z * uv, worldPosition.y * uv);
+            uv0[i + 1] = new Vector2(worldPosition.z * uv, worldPosition.y * uv + uv);
+            uv0[i + 2] = new Vector2(worldPosition.z * uv + uv, worldPosition.y * uv + uv);
+            uv0[i + 3] = new Vector2(worldPosition.z * uv + uv, worldPosition.y * uv);
+
+            colors[i] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+            colors[i + 1] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+            colors[i + 2] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+            colors[i + 3] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+
+            triangles[j] = i;
+            triangles[j + 1] = i + 1;
+            triangles[j + 2] = i + 2;
+            triangles[j + 3] = i;
+            triangles[j + 4] = i + 2;
+            triangles[j + 5] = i + 3;
+
+            return 1;
+        }
+
+        private int GenerateEastWall(int index, Vector3Int worldPosition, Vector3Int chunkPosition, TerrainTypeMaterialInfo materialInfo)
+        {
+            int i = index * 4;
+            int j = index * 6;
+
+            // Looking along X axis
+            // Bottom left
+            vertices[i] = new Vector3(chunkPosition.x * tileSize.x + tileSize.x, chunkPosition.y * tileSize.y, chunkPosition.z * tileSize.z + tileSize.z);
+
+            // Top left
+            vertices[i + 1] = new Vector3(chunkPosition.x * tileSize.x + tileSize.x, chunkPosition.y * tileSize.y + tileSize.y, chunkPosition.z * tileSize.z + tileSize.z);
+
+            // Top right
+            vertices[i + 2] = new Vector3(chunkPosition.x * tileSize.x + tileSize.x, chunkPosition.y * tileSize.y + tileSize.y, chunkPosition.z * tileSize.z);
+
+            // Bottom right
+            vertices[i + 3] = new Vector3(chunkPosition.x * tileSize.x + tileSize.x, chunkPosition.y * tileSize.y, chunkPosition.z * tileSize.z);
+
+            float uv = 1f / textureSize;
+            uv0[i] = new Vector2(worldPosition.z * uv, worldPosition.y * uv);
+            uv0[i + 1] = new Vector2(worldPosition.z * uv, worldPosition.y * uv + uv);
+            uv0[i + 2] = new Vector2(worldPosition.z * uv + uv, worldPosition.y * uv + uv);
+            uv0[i + 3] = new Vector2(worldPosition.z * uv + uv, worldPosition.y * uv);
+
+            colors[i] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+            colors[i + 1] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+            colors[i + 2] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+            colors[i + 3] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+
+            triangles[j] = i;
+            triangles[j + 1] = i + 2;
+            triangles[j + 2] = i + 1;
+            triangles[j + 3] = i;
+            triangles[j + 4] = i + 3;
+            triangles[j + 5] = i + 2;
+
+            return 1;
+        }
+
+        private int GenerateSouthWall(int index, Vector3Int worldPosition, Vector3Int chunkPosition, TerrainTypeMaterialInfo materialInfo)
+        {
+            int i = index * 4;
+            int j = index * 6;
+
+            // Looking along Z axis
+            // Bottom left
+            vertices[i] = new Vector3(chunkPosition.x * tileSize.x, chunkPosition.y * tileSize.y, chunkPosition.z * tileSize.z);
+
+            // Top left
+            vertices[i + 1] = new Vector3(chunkPosition.x * tileSize.x, chunkPosition.y * tileSize.y + tileSize.y, chunkPosition.z * tileSize.z);
+
+            // Top right
+            vertices[i + 2] = new Vector3(chunkPosition.x * tileSize.x + tileSize.x, chunkPosition.y * tileSize.y + tileSize.y, chunkPosition.z * tileSize.z);
+
+            // Bottom right
+            vertices[i + 3] = new Vector3(chunkPosition.x * tileSize.x + tileSize.x, chunkPosition.y * tileSize.y, chunkPosition.z * tileSize.z);
+
+            float uv = 1f / textureSize;
+            uv0[i] = new Vector2(worldPosition.x * uv, worldPosition.y * uv);
+            uv0[i + 1] = new Vector2(worldPosition.x * uv, worldPosition.y * uv + uv);
+            uv0[i + 2] = new Vector2(worldPosition.x * uv + uv, worldPosition.y * uv + uv);
+            uv0[i + 3] = new Vector2(worldPosition.x * uv + uv, worldPosition.y * uv);
+
+            colors[i] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+            colors[i + 1] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+            colors[i + 2] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+            colors[i + 3] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+
+            triangles[j] = i;
+            triangles[j + 1] = i + 1;
+            triangles[j + 2] = i + 2;
+            triangles[j + 3] = i;
+            triangles[j + 4] = i + 2;
+            triangles[j + 5] = i + 3;
+
+            return 1;
+        }
+
+        private int GenerateNorthWall(int index, Vector3Int worldPosition, Vector3Int chunkPosition, TerrainTypeMaterialInfo materialInfo)
+        {
+            int i = index * 4;
+            int j = index * 6;
+
+            // Looking along Z axis
+            // Bottom left
+            vertices[i] = new Vector3(chunkPosition.x * tileSize.x, chunkPosition.y * tileSize.y, chunkPosition.z * tileSize.z + tileSize.z);
+
+            // Top left
+            vertices[i + 1] = new Vector3(chunkPosition.x * tileSize.x, chunkPosition.y * tileSize.y + tileSize.y, chunkPosition.z * tileSize.z + tileSize.z);
+
+            // Top right
+            vertices[i + 2] = new Vector3(chunkPosition.x * tileSize.x + tileSize.x, chunkPosition.y * tileSize.y + tileSize.y, chunkPosition.z * tileSize.z + tileSize.z);
+
+            // Bottom right
+            vertices[i + 3] = new Vector3(chunkPosition.x * tileSize.x + tileSize.x, chunkPosition.y * tileSize.y, chunkPosition.z * tileSize.z + tileSize.z);
+
+            float uv = 1f / textureSize;
+            uv0[i] = new Vector2(worldPosition.x * uv, worldPosition.y * uv);
+            uv0[i + 1] = new Vector2(worldPosition.x * uv, worldPosition.y * uv + uv);
+            uv0[i + 2] = new Vector2(worldPosition.x * uv + uv, worldPosition.y * uv + uv);
+            uv0[i + 3] = new Vector2(worldPosition.x * uv + uv, worldPosition.y * uv);
+
+            colors[i] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+            colors[i + 1] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+            colors[i + 2] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+            colors[i + 3] = new Color(materialInfo.shaderIndex, materialInfo.smoothness, 0, 0);
+
+            triangles[j] = i;
+            triangles[j + 1] = i + 2;
+            triangles[j + 2] = i + 1;
+            triangles[j + 3] = i;
+            triangles[j + 4] = i + 3;
+            triangles[j + 5] = i + 2;
+
+            return 1;
+        }
+
     }
 }
 

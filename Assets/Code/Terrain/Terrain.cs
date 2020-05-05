@@ -32,8 +32,8 @@ public class Terrain
     public event TileTypeChange tileTypeChanged;
 
     // Is tile present at all?
-    NativeArray<bool> present;
-    NativeArray<TerrainType> type;
+    public NativeArray<bool> present;
+    public NativeArray<TerrainType> type;
 
     public void Generate(int width, int depth, int height)
     {
@@ -51,6 +51,11 @@ public class Terrain
         type.Dispose();
     }
 
+    public Vector3Int GetWorldSize()
+    {
+        return new Vector3Int(terrainWidth, terrainHeight, terrainDepth);
+    }
+
     // Use for init, does not invoke callback
     public void SetPresent(bool value)
     {
@@ -66,6 +71,22 @@ public class Terrain
 
         present[index] = value;
         tilePresentChanged?.Invoke(tile, value);
+    }
+
+    public static bool IsPresent(Vector3Int tile, Vector3Int size, NativeArray<bool> present)
+    {
+        if (tile.x < 0 || tile.x >= size.x)
+            return false;
+        if (tile.z < 0 || tile.z >= size.z)
+            return false;
+        if (tile.y < 0 || tile.y >= size.y)
+            return false;
+
+        int index = GetArrayIndex(tile, size);
+        if (index >= present.Length)
+            return false;
+
+        return present[index];
     }
 
     public bool IsPresent(Vector3Int tile)
@@ -105,6 +126,11 @@ public class Terrain
         tileTypeChanged?.Invoke(tile, value);
     }
 
+    public static TerrainType GetType(Vector3Int tile, Vector3Int worldSize, NativeArray<TerrainType> type)
+    {
+        return type[GetArrayIndex(tile, worldSize)];
+    }
+
     public TerrainType GetType(int width, int depth, int height)
     {
         return type[GetArrayIndex(width, depth, height)];
@@ -112,7 +138,12 @@ public class Terrain
 
     private int GetArrayIndex(int x, int z, int y)
     {
-        return (y * terrainWidth * terrainDepth) + (z * terrainWidth) + x;
+        return GetArrayIndex(new Vector3Int(x, y, z), new Vector3Int(terrainWidth, terrainHeight, terrainDepth));
+    }
+
+    public static int GetArrayIndex(Vector3Int tile, Vector3Int worldSize)
+    {
+        return (tile.y * worldSize.x * worldSize.z) + (tile.z * worldSize.x) + tile.x;
     }
 }
 

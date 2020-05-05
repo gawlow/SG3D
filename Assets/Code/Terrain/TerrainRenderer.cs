@@ -2,11 +2,13 @@
 using System.Collections.Generic;
 using System;
 using UnityEngine;
+using Unity.Collections;
+using Unity.Jobs;
 
 namespace SG3D {
 
 public struct TerrainTypeMaterialInfo {
-    public TerrainType type;
+    public int type;
     public float smoothness;
     public float shaderIndex;
 };
@@ -43,22 +45,46 @@ public class TerrainRenderer : MonoBehaviour
     public bool useNormalMaps;
     public bool useMetallicMaps;
     public bool useOcclusionMaps;
+    public int maxConcurrentJobs = 32;
 
     public Material terrainMaterial;
     Material materialRuntimeCopy;
 
-    Dictionary<TerrainType, TerrainTypeMaterialInfo> materialInfo;
+    NativeHashMap<int, TerrainTypeMaterialInfo> materialInfo;
+    NativeArray<Vector3>[] vertexBuffers;
+    NativeArray<int>[] indexBuffers;
+    NativeArray<Vector2>[] uv0Buffers;
+    NativeArray<Color>[] colorBuffers;
+    TerrainChunk.UpdateMeshJob[] meshJobs;
+    Nullable<JobHandle>[] meshAvailableJobs;
+    HashSet<Tuple<int, int>> meshUpdateRequests;
+    int jobsInFlight = 0;
 
     public void Initialise(Terrain terrainData)
     {
         this.terrainData = terrainData;
+        meshUpdateRequests = new HashSet<Tuple<int, int>>();
+
         PrepareTerrainMaterial();
+    }
+
+    void OnDestroy()
+    {
+        for (int i = 0; i < maxConcurrentJobs; i++) {
+            meshJobs[i].counts.Dispose();
+            vertexBuffers[i].Dispose();
+            indexBuffers[i].Dispose();
+            uv0Buffers[i].Dispose();
+            colorBuffers[i].Dispose();
+        }
+
+        materialInfo.Dispose();
     }
 
     private void PrepareTerrainMaterial()
     {
-        materialInfo = new Dictionary<TerrainType, TerrainTypeMaterialInfo>();
         int materialsCount = Enum.GetNames(typeof(TerrainType)).Length;
+        materialInfo = new NativeHashMap<int, TerrainTypeMaterialInfo>(materialsCount, Allocator.Persistent);
 
         // We read format properties from grass texture and assume rest is the same. It better be :)
         Texture2D grassTexture = grassMaterial.GetTexture("_BaseMap") as Texture2D;
@@ -120,13 +146,29 @@ public class TerrainRenderer : MonoBehaviour
 
         TerrainTypeMaterialInfo info;
         info.smoothness = (useMetallicMaps) ? material.GetFloat("_Smoothness") : 0f;
-        info.type = type;
+        info.type = (int) type;
         info.shaderIndex = (float) type + 0.1f; // +0.1f is to ensure that truncation to int will return correct number in shader
-        materialInfo[type] = info;
+        materialInfo[(int) type] = info;
     }
 
-    public IEnumerator CreateWorld()
+    public void CreateWorld()
     {
+        vertexBuffers = new NativeArray<Vector3>[maxConcurrentJobs];
+        indexBuffers = new NativeArray<int>[maxConcurrentJobs];
+        uv0Buffers = new NativeArray<Vector2>[maxConcurrentJobs];
+        colorBuffers = new NativeArray<Color>[maxConcurrentJobs];
+        meshJobs = new TerrainChunk.UpdateMeshJob[maxConcurrentJobs];
+        meshAvailableJobs = new Nullable<JobHandle>[maxConcurrentJobs];
+
+        for (int i = 0; i < maxConcurrentJobs; i++) {
+            vertexBuffers[i] = new NativeArray<Vector3>(terrainData.terrainWidth * terrainData.terrainDepth * terrainData.terrainHeight * 4, Allocator.Persistent);
+            indexBuffers[i] = new NativeArray<int>(terrainData.terrainWidth * terrainData.terrainDepth * terrainData.terrainHeight * 6, Allocator.Persistent);
+            uv0Buffers[i] = new NativeArray<Vector2>(terrainData.terrainWidth * terrainData.terrainDepth * terrainData.terrainHeight * 4, Allocator.Persistent);
+            colorBuffers[i] = new NativeArray<Color>(terrainData.terrainWidth * terrainData.terrainDepth * terrainData.terrainHeight * 4, Allocator.Persistent);
+            meshJobs[i] = new TerrainChunk.UpdateMeshJob();
+            meshJobs[i].counts = new NativeArray<int>(1, Allocator.Persistent);
+        }
+
         // Because map can be really large, generating a single mesh is a no-go, as updates to it would take too
         // much time. So we divide world into equaly sized chunks, slicing the world along the X and Z coordinates 
         // (Y is expected to be small anyway). Each chunk then generates its meshes, colliders, etc
@@ -143,47 +185,132 @@ public class TerrainRenderer : MonoBehaviour
                 chunk.name = $"Chunk X: {x * chunkSize} Z:{z * chunkSize}, size: {chunkSize}";
                 chunk.Initialise(terrainData, this, x, z, chunkSize, chunkTextureSize, materialRuntimeCopy);
                 chunks[x, z] = chunk;
-                yield return null;
             }
         }
     }
 
     // This updates entire world, should be called only on startup really
-    public IEnumerator UpdateWorldMesh()
+    public void UpdateWorldMesh()
     {
+        // int i = 0;
         for (int x = 0; x < chunks.GetLength(0); x++) {
             for (int z = 0; z < chunks.GetLength(1); z++) {
-                chunks[x, z].UpdateMesh();
-                yield return null;
+                ScheduleChunkUpdate(x, z);
             }
         }
+    }
+
+    private void ScheduleChunkUpdate(int x, int z)
+    {
+        meshUpdateRequests.Add(new Tuple<int, int>(x, z));
+        if (jobsInFlight > 0)
+            TryCompleteJobs();
+
+        TryScheduleUpdates();
+    }
+    private void ScheduleChunkUpdateForTile(Vector3Int tile)
+    {
+        ScheduleChunkUpdate(tile.x / chunkSize, tile.z / chunkSize);
+    }
+
+    private void TryScheduleUpdates()
+    {
+        HashSet<Tuple<int, int>> toRemove = new HashSet<Tuple<int, int>>();
+
+        if (jobsInFlight == maxConcurrentJobs)
+            return;
+
+        foreach (var chunk in meshUpdateRequests) {
+            int freeJob = FindFreeJob();
+            if (freeJob == -1)
+                break;
+            
+            StartJob(chunk.Item1, chunk.Item2, freeJob);
+            toRemove.Add(chunk);
+        }
+
+        foreach (var chunk in toRemove) {
+            meshUpdateRequests.Remove(chunk);
+        }
+    }
+
+    private void TryCompleteJobs()
+    {
+        for (int i = 0; i < maxConcurrentJobs; i++) {
+            if (meshAvailableJobs[i].HasValue) {
+                JobHandle jobHandle = meshAvailableJobs[i].Value;
+                if (jobHandle.IsCompleted) {
+                    jobHandle.Complete();
+
+                    TerrainChunk.UpdateMeshJob job = meshJobs[i];
+                    chunks[job.chunkX, job.chunkZ].UpdateMesh(job.counts[0], job.vertices, job.triangles, job.uv0, job.colors);
+                    meshAvailableJobs[i] = null;
+                    jobsInFlight--;
+                }
+            }
+        }
+    }
+
+    private int FindFreeJob()
+    {
+        for (int i = 0; i < maxConcurrentJobs; i++) {
+            if (!meshAvailableJobs[i].HasValue)
+                return i;
+        }
+
+        return -1;
+    }
+
+    private void StartJob(int x, int z, int jobIndex)
+    {
+        TerrainChunk.UpdateMeshJob job = meshJobs[jobIndex];
+        job.worldSize = terrainData.GetWorldSize();
+        job.tileSize = new Vector3(tileWidth, tileHeight, tileDepth);
+        job.chunkWorldPosition = new Vector3Int(x * chunkSize, 0 * chunkSize, z * chunkSize);
+        job.chunkSize = chunkSize;
+        job.textureSize = chunkTextureSize;
+        job.vertices = vertexBuffers[jobIndex];
+        job.triangles = indexBuffers[jobIndex];
+        job.uv0 = uv0Buffers[jobIndex];
+        job.colors = colorBuffers[jobIndex];
+        job.present = terrainData.present;
+        job.type = terrainData.type;
+        job.materials = materialInfo;
+        job.chunkX = x;
+        job.chunkZ = z;
+        job.counts[0] = 0;
+
+        // Remember its an struct, so need to explicitly save it
+        meshJobs[jobIndex] = job;
+        meshAvailableJobs[jobIndex] = meshJobs[jobIndex].Schedule();
+        jobsInFlight++;
     }
 
     // Updates mesh for chunk containing given tile
     public void UpdateWorldMeshForTile(Vector3Int tile)
     {
-        GetChunkForTile(tile).UpdateMesh();
+        ScheduleChunkUpdateForTile(tile);
 
         // Check if tile is at the chunk boundary and refresh neighbours if needed
         int tileX = tile.x % chunkSize;
         int tileZ = tile.z % chunkSize;
 
         if (tileX == chunkSize - 1 && terrainData.terrainWidth > tile.x + 1) {  // +1 because tiles are indexed from 0
-            GetChunkForTile(new Vector3Int(tile.x + 1, tile.y, tile.z)).UpdateMesh();
+            ScheduleChunkUpdateForTile(new Vector3Int(tile.x + 1, tile.y, tile.z));
         } else if (tileX == 1 && tile.x > 0) {
-            GetChunkForTile(new Vector3Int(tile.x - 1, tile.y, tile.z)).UpdateMesh();
+            ScheduleChunkUpdateForTile(new Vector3Int(tile.x - 1, tile.y, tile.z));
         }
 
         if (tileZ == chunkSize - 1 && terrainData.terrainDepth > tile.z + 1) {  // +1 because tiles are indexed from 0
-            GetChunkForTile(new Vector3Int(tile.x, tile.y, tile.z + 1)).UpdateMesh();
+            ScheduleChunkUpdateForTile(new Vector3Int(tile.x, tile.y, tile.z + 1));
         } else if (tileZ == 1 && tile.x > 0) {
-            GetChunkForTile(new Vector3Int(tile.x, tile.y , tile.z - 1)).UpdateMesh();
+            ScheduleChunkUpdateForTile(new Vector3Int(tile.x, tile.y, tile.z - 1));
         }
     }
 
     public TerrainTypeMaterialInfo GetMaterialInfo(TerrainType type)
     {
-        return materialInfo[type];
+        return materialInfo[(int) type];
     }
 
     private TerrainChunk GetChunkForTile(Vector3Int tile)
@@ -204,6 +331,12 @@ public class TerrainRenderer : MonoBehaviour
 
     void Update()
     {
+        if (jobsInFlight > 0)
+            TryCompleteJobs();
+
+        if (meshUpdateRequests.Count > 0)
+            TryScheduleUpdates();
+
         // Detection of clicking on tiles
         if (Input.GetMouseButtonDown(0)) {
             Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
@@ -240,6 +373,15 @@ public class TerrainRenderer : MonoBehaviour
                 }
             }
         }
+    }
+
+    void LateUpdate()
+    {
+        if (jobsInFlight > 0)
+            TryCompleteJobs();
+
+        if (meshUpdateRequests.Count > 0)
+            TryScheduleUpdates();        
     }
 }
 

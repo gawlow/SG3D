@@ -38,8 +38,8 @@ public class TerrainGenerator : MonoBehaviour
         terrainRenderer.tileClicked += OnTileClicked;
         terrain.tilePresentChanged += OnTilePresentChanged;
 
-        StartCoroutine(terrainRenderer.CreateWorld());
-        StartCoroutine(terrainRenderer.UpdateWorldMesh());
+        terrainRenderer.CreateWorld();
+        terrainRenderer.UpdateWorldMesh();
     }
 
     void OnDestroy() {
