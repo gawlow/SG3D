@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using Unity.Collections;
 using Unity.Jobs;
+using Unity.Burst;
 
 namespace SG3D {
 
@@ -68,6 +69,7 @@ public class TerrainChunk : MonoBehaviour
         Gizmos.DrawWireCube(position, new Vector3(size * renderer.tileSize.x, terrain.height * renderer.tileSize.y, size * renderer.tileSize.z));
     }
 
+    [BurstCompile]
     public struct UpdateMeshJob : IJob
     {
         public int chunkX;
@@ -77,11 +79,11 @@ public class TerrainChunk : MonoBehaviour
         public Vector3Int chunkWorldPosition;
         public int chunkSize;
         public int textureSize;
-        public NativeArray<Vector3> vertices;
-        public NativeArray<int> triangles;
-        public NativeArray<Vector2> uv0;
-        public NativeArray<Color> colors;
-        public NativeArray<int> counts;
+        [WriteOnly] public NativeArray<Vector3> vertices;
+        [WriteOnly] public NativeArray<int> triangles;
+        [WriteOnly] public NativeArray<Vector2> uv0;
+        [WriteOnly] public NativeArray<Color> colors;
+        [WriteOnly] public NativeArray<int> counts;
         public TerrainInfo terrain;
         [ReadOnly] public NativeHashMap<int, TerrainTypeMaterialInfo> materials;
 
