@@ -28,9 +28,10 @@ class TerrainBakeMeshJobManager : JobManager<BakeMeshJob, TerrainBakeMeshJobMana
         job.meshID = startParams.mesh.GetInstanceID();
     }
 
-    public override void OnComplete(int i, ref BakeMeshJob job, TerrainBakeMeshJobManager.JobParams startParams)
+    public override void OnComplete(int i, ref BakeMeshJob job, ref TerrainBakeMeshJobManager.JobParams startParams)
     {
-        startParams.chunk.ApplyMesh();
+        startParams.chunk.ApplyMesh(startParams.mesh);
+        startParams.mesh = null;    // Don't hold reference to mesh
     }
 }
 

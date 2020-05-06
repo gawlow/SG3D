@@ -71,7 +71,7 @@ public abstract class JobManager<T, K>
                 continue;
             
             handle.Complete();
-            OnComplete(i, ref jobs[i], runningJobParams[i]);
+            OnComplete(i, ref jobs[i], ref runningJobParams[i]);
 
             jobHandles[i] = null;
             freeJobs.Enqueue(i);
@@ -80,7 +80,7 @@ public abstract class JobManager<T, K>
 
     public abstract void OnReady(int i, ref T job, K startParams);
 
-    public abstract void OnComplete(int i, ref T job, K startParams);
+    public abstract void OnComplete(int i, ref T job, ref K startParams);
 }
 
 }
