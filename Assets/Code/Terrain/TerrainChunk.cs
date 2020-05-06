@@ -18,7 +18,7 @@ public class TerrainChunk : MonoBehaviour
     public int textureSize;   // spread texture over how many tiles
 
     MeshFilter meshFilter;
-    Mesh mesh;
+    public Mesh mesh;
     Terrain terrain;
     new TerrainRenderer renderer;
 
@@ -43,7 +43,7 @@ public class TerrainChunk : MonoBehaviour
         GetComponent<MeshRenderer>().material = material;
     }
 
-    public void UpdateMesh(int index, NativeArray<Vector3> vertices, NativeArray<int> indices, NativeArray<Vector2> uv0, NativeArray<Color> colors)
+    public void UpdateMeshData(int index, NativeArray<Vector3> vertices, NativeArray<int> indices, NativeArray<Vector2> uv0, NativeArray<Color> colors)
     {
         mesh.Clear();
         mesh.SetVertices(vertices, 0, index * 4);
@@ -51,6 +51,10 @@ public class TerrainChunk : MonoBehaviour
         mesh.SetUVs(0, uv0, 0, index * 4);
         mesh.SetColors(colors, 0, index * 4);
         mesh.RecalculateNormals();
+    }
+
+    public void ApplyMesh()
+    {
         meshFilter.mesh = mesh;
         meshCollider.sharedMesh = mesh;
     }

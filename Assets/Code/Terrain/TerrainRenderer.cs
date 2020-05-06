@@ -53,11 +53,13 @@ public class TerrainRenderer : MonoBehaviour
     public NativeHashMap<int, TerrainTypeMaterialInfo> materialInfo;
 
     TerrainMeshRendererJobManager meshJobManager;
+    TerrainBakeMeshJobManager bakeMeshJobManager;
 
     public void Initialise(Terrain terrain)
     {
         this.terrain = terrain;
         meshJobManager = new TerrainMeshRendererJobManager();
+        bakeMeshJobManager = new TerrainBakeMeshJobManager();
 
         PrepareTerrainMaterial();
     }
@@ -140,7 +142,8 @@ public class TerrainRenderer : MonoBehaviour
 
     public void CreateWorld()
     {
-        meshJobManager.Initialize(maxJobs, terrain, this);
+        meshJobManager.Initialize(maxJobs, terrain, this, bakeMeshJobManager);
+        bakeMeshJobManager.Initialize(maxJobs);
 
         // Because map can be really large, generating a single mesh is a no-go, as updates to it would take too
         // much time. So we divide world into equaly sized chunks, slicing the world along the X and Z coordinates 
@@ -175,7 +178,7 @@ public class TerrainRenderer : MonoBehaviour
 
     private void ScheduleChunkUpdate(int x, int z)
     {
-        meshJobManager.ScheduleJob(new Tuple<int, int>(x, z));
+        meshJobManager.ScheduleJob(new TerrainMeshRendererJobManager.JobParam(x, z));
     }
     private void ScheduleChunkUpdateForTile(Vector3Int tile)
     {
@@ -233,6 +236,7 @@ public class TerrainRenderer : MonoBehaviour
     void Update()
     {
         meshJobManager.CompleteAndRun();
+        bakeMeshJobManager.CompleteAndRun();
 
         // Detection of clicking on tiles
         if (Input.GetMouseButtonDown(0)) {
@@ -275,6 +279,7 @@ public class TerrainRenderer : MonoBehaviour
     void LateUpdate()
     {
         meshJobManager.CompleteAndRun();
+        bakeMeshJobManager.CompleteAndRun();
     }
 }
 

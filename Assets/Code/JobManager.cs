@@ -6,16 +6,19 @@ using System;
 
 namespace SG3D {
 
-public abstract class JobManager<T, K> where T : struct, IJob
+public abstract class JobManager<T, K> 
+    where T : struct, IJob
 {
     T[] jobs;
     Nullable<JobHandle>[] jobHandles;
     Queue<int> freeJobs;
     Queue<K> scheduledJobs;
+    K[] runningJobParams;
 
     public void Initialize(int maxJobs)
     {
         jobs = new T[maxJobs];
+        runningJobParams = new K[maxJobs];
         jobHandles = new Nullable<JobHandle>[maxJobs];
         scheduledJobs = new Queue<K>(maxJobs);  // Give it some initial capacity
 
@@ -49,7 +52,9 @@ public abstract class JobManager<T, K> where T : struct, IJob
             return false;
 
         int index = freeJobs.Dequeue();
-        OnReady(index, ref jobs[index], scheduledJobs.Dequeue());
+
+        runningJobParams[index] = scheduledJobs.Dequeue();
+        OnReady(index, ref jobs[index], runningJobParams[index]);
 
         jobHandles[index] = jobs[index].Schedule();
         return true;
@@ -66,7 +71,7 @@ public abstract class JobManager<T, K> where T : struct, IJob
                 continue;
             
             handle.Complete();
-            OnComplete(i, ref jobs[i]);
+            OnComplete(i, ref jobs[i], runningJobParams[i]);
 
             jobHandles[i] = null;
             freeJobs.Enqueue(i);
@@ -75,7 +80,7 @@ public abstract class JobManager<T, K> where T : struct, IJob
 
     public abstract void OnReady(int i, ref T job, K startParams);
 
-    public abstract void OnComplete(int i, ref T job);
+    public abstract void OnComplete(int i, ref T job, K startParams);
 }
 
 }

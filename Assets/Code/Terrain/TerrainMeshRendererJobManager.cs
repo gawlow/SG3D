@@ -7,19 +7,32 @@ using Unity.Collections;
 
 namespace SG3D {
 
-class TerrainMeshRendererJobManager : JobManager<TerrainChunk.UpdateMeshJob, Tuple<int, int>>
+class TerrainMeshRendererJobManager : JobManager<TerrainChunk.UpdateMeshJob, TerrainMeshRendererJobManager.JobParam>
 {
+    public struct JobParam {
+        public JobParam(int x, int z) 
+        {
+            chunkX = x;
+            chunkZ = z;
+        }
+        
+        public int chunkX;
+        public int chunkZ;
+    };
+
     NativeArray<Vector3>[] vertexBuffers;
     NativeArray<int>[] indexBuffers;
     NativeArray<Vector2>[] uv0Buffers;
     NativeArray<Color>[] colorBuffers;
     Terrain terrain;
     TerrainRenderer renderer;
+    TerrainBakeMeshJobManager bakeMeshJobManager;
 
-    public void Initialize(int maxJobs, Terrain terrain, TerrainRenderer renderer)
+    public void Initialize(int maxJobs, Terrain terrain, TerrainRenderer renderer, TerrainBakeMeshJobManager bakeMeshJobManager)
     {
         this.terrain = terrain;
         this.renderer = renderer;
+        this.bakeMeshJobManager = bakeMeshJobManager;
 
         vertexBuffers = new NativeArray<Vector3>[maxJobs];
         indexBuffers = new NativeArray<int>[maxJobs];
@@ -46,10 +59,10 @@ class TerrainMeshRendererJobManager : JobManager<TerrainChunk.UpdateMeshJob, Tup
         }
     }
 
-    public override void OnReady(int i, ref TerrainChunk.UpdateMeshJob job, Tuple<int, int> startParams)
+    public override void OnReady(int i, ref TerrainChunk.UpdateMeshJob job, TerrainMeshRendererJobManager.JobParam startParams)
     {
-        int x = startParams.Item1;
-        int z = startParams.Item2;
+        int x = startParams.chunkX;
+        int z = startParams.chunkZ;
 
         job.worldSize = terrain.GetWorldSize();
         job.tileSize = renderer.tileSize;
@@ -67,9 +80,16 @@ class TerrainMeshRendererJobManager : JobManager<TerrainChunk.UpdateMeshJob, Tup
         job.counts = new NativeArray<int>(1, Allocator.TempJob);
     }
 
-    public override void OnComplete(int i, ref TerrainChunk.UpdateMeshJob job)
+    public override void OnComplete(int i, ref TerrainChunk.UpdateMeshJob job, TerrainMeshRendererJobManager.JobParam startParams)
     {
-        renderer.GetChunk(job.chunkX, job.chunkZ).UpdateMesh(job.counts[0], job.vertices, job.triangles, job.uv0, job.colors);
+        TerrainChunk chunk = renderer.GetChunk(job.chunkX, job.chunkZ);
+
+        TerrainBakeMeshJobManager.JobParams bakeParams;
+        bakeParams.mesh = chunk.mesh;
+        bakeParams.chunk = chunk;
+
+        chunk.UpdateMeshData(job.counts[0], job.vertices, job.triangles, job.uv0, job.colors);
+        bakeMeshJobManager.ScheduleJob(bakeParams);
         job.counts.Dispose();
     }
 }
