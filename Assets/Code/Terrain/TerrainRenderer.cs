@@ -36,7 +36,7 @@ public class TerrainRenderer : MonoBehaviour
     public Material sandMaterial;
 
     TerrainChunk[,] chunks;
-    Terrain terrainData;
+    Terrain terrain;
     Texture2DArray terrainBaseTextures;
     Texture2DArray terrainNormalMaps;
     Texture2DArray terrainMetallicMaps;
@@ -54,9 +54,9 @@ public class TerrainRenderer : MonoBehaviour
 
     TerrainMeshRendererJobManager meshJobManager;
 
-    public void Initialise(Terrain terrainData)
+    public void Initialise(Terrain terrain)
     {
-        this.terrainData = terrainData;
+        this.terrain = terrain;
         meshJobManager = new TerrainMeshRendererJobManager();
 
         PrepareTerrainMaterial();
@@ -140,13 +140,13 @@ public class TerrainRenderer : MonoBehaviour
 
     public void CreateWorld()
     {
-        meshJobManager.Initialize(maxJobs, terrainData, this);
+        meshJobManager.Initialize(maxJobs, terrain, this);
 
         // Because map can be really large, generating a single mesh is a no-go, as updates to it would take too
         // much time. So we divide world into equaly sized chunks, slicing the world along the X and Z coordinates 
         // (Y is expected to be small anyway). Each chunk then generates its meshes, colliders, etc
-        int width = (terrainData.terrainWidth / chunkSize) + ((terrainData.terrainWidth % chunkSize > 0) ? 1 : 0);
-        int depth = (terrainData.terrainDepth / chunkSize) + ((terrainData.terrainDepth % chunkSize > 0) ? 1 : 0);
+        int width = (terrain.width / chunkSize) + ((terrain.width % chunkSize > 0) ? 1 : 0);
+        int depth = (terrain.depth / chunkSize) + ((terrain.depth % chunkSize > 0) ? 1 : 0);
 
         chunks = new TerrainChunk[width, depth];
 
@@ -156,7 +156,7 @@ public class TerrainRenderer : MonoBehaviour
                 chunk.transform.localPosition = new Vector3(x * chunkSize * tileSize.x, 0f, z * chunkSize * tileSize.z);
                 chunk.transform.localRotation = Quaternion.identity;
                 chunk.name = $"Chunk X: {x * chunkSize} Z:{z * chunkSize}, size: {chunkSize}";
-                chunk.Initialise(terrainData, this, x, z, chunkSize, chunkTextureSize, materialRuntimeCopy);
+                chunk.Initialise(terrain, this, x, z, chunkSize, chunkTextureSize, materialRuntimeCopy);
                 chunks[x, z] = chunk;
             }
         }
@@ -191,13 +191,13 @@ public class TerrainRenderer : MonoBehaviour
         int tileX = tile.x % chunkSize;
         int tileZ = tile.z % chunkSize;
 
-        if (tileX == chunkSize - 1 && terrainData.terrainWidth > tile.x + 1) {  // +1 because tiles are indexed from 0
+        if (tileX == chunkSize - 1 && terrain.width > tile.x + 1) {  // +1 because tiles are indexed from 0
             ScheduleChunkUpdateForTile(new Vector3Int(tile.x + 1, tile.y, tile.z));
         } else if (tileX == 1 && tile.x > 0) {
             ScheduleChunkUpdateForTile(new Vector3Int(tile.x - 1, tile.y, tile.z));
         }
 
-        if (tileZ == chunkSize - 1 && terrainData.terrainDepth > tile.z + 1) {  // +1 because tiles are indexed from 0
+        if (tileZ == chunkSize - 1 && terrain.depth > tile.z + 1) {  // +1 because tiles are indexed from 0
             ScheduleChunkUpdateForTile(new Vector3Int(tile.x, tile.y, tile.z + 1));
         } else if (tileZ == 1 && tile.x > 0) {
             ScheduleChunkUpdateForTile(new Vector3Int(tile.x, tile.y, tile.z - 1));
@@ -222,9 +222,9 @@ public class TerrainRenderer : MonoBehaviour
     private Vector3Int WorldToTileCoordinates(Vector3 tile)
     {
         Vector3Int result = new Vector3Int(
-            Mathf.FloorToInt(Mathf.Clamp(tile.x, 0f, terrainData.terrainWidth * tileSize.x) / tileSize.x),
-            Mathf.FloorToInt(Mathf.Clamp(tile.y, 0f, terrainData.terrainHeight * tileSize.y) / tileSize.y),
-            Mathf.FloorToInt(Mathf.Clamp(tile.z, 0f, terrainData.terrainDepth * tileSize.z) / tileSize.z)
+            Mathf.FloorToInt(Mathf.Clamp(tile.x, 0f, terrain.width * tileSize.x) / tileSize.x),
+            Mathf.FloorToInt(Mathf.Clamp(tile.y, 0f, terrain.height * tileSize.y) / tileSize.y),
+            Mathf.FloorToInt(Mathf.Clamp(tile.z, 0f, terrain.depth * tileSize.z) / tileSize.z)
         );
 
         return result;
@@ -244,14 +244,14 @@ public class TerrainRenderer : MonoBehaviour
 
                 // If tile is not present, it means that we probably clicked on tile boundary and need to guess
                 // the correct one. Check all neighbours within 0.01f unit of click coordinates
-                if (!terrainData.IsPresent(clickedTile)) {
+                if (!terrain.IsPresent(clickedTile)) {
                     float[] offsets = new float[]{-0.01f, 0f, 0.01f};
 
                     foreach (float x in offsets) {
                         foreach (float y in offsets) {
                             foreach (float z in offsets) {
                                 Vector3Int possibleTile = WorldToTileCoordinates(new Vector3(hit.point.x + x, hit.point.y + y, hit.point.z + z));
-                                if (terrainData.IsPresent(possibleTile)) {
+                                if (terrain.IsPresent(possibleTile)) {
                                     Debug.Log($"Tile click deduction guessed {possibleTile}");
                                     clickedTile = possibleTile;
                                     goto Out;
@@ -262,7 +262,7 @@ public class TerrainRenderer : MonoBehaviour
                 }
 
             Out:
-                if (!terrainData.IsPresent(clickedTile)) {
+                if (!terrain.IsPresent(clickedTile)) {
                     Debug.Log($"Can't figure out clicked tile correctly for {hit.point}");
                 } else {
                     Debug.Log($"Detected hit for {hit.collider.name} at {hit.point} (UV {hit.textureCoord}) = {clickedTile}");

@@ -27,10 +27,10 @@ class TerrainMeshRendererJobManager : JobManager<TerrainChunk.UpdateMeshJob, Tup
         colorBuffers = new NativeArray<Color>[maxJobs];
 
         for (int i = 0; i < maxJobs; i++) {
-            vertexBuffers[i] = new NativeArray<Vector3>(renderer.chunkSize * terrain.terrainHeight * renderer.chunkSize * 4, Allocator.Persistent);
-            indexBuffers[i] = new NativeArray<int>(renderer.chunkSize * terrain.terrainHeight * renderer.chunkSize * 6, Allocator.Persistent);
-            uv0Buffers[i] = new NativeArray<Vector2>(renderer.chunkSize * terrain.terrainHeight * renderer.chunkSize * 4, Allocator.Persistent);
-            colorBuffers[i] = new NativeArray<Color>(renderer.chunkSize * terrain.terrainHeight * renderer.chunkSize * 4, Allocator.Persistent);
+            vertexBuffers[i] = new NativeArray<Vector3>(renderer.chunkSize * terrain.height * renderer.chunkSize * 4, Allocator.Persistent);
+            indexBuffers[i] = new NativeArray<int>(renderer.chunkSize * terrain.height * renderer.chunkSize * 6, Allocator.Persistent);
+            uv0Buffers[i] = new NativeArray<Vector2>(renderer.chunkSize * terrain.height * renderer.chunkSize * 4, Allocator.Persistent);
+            colorBuffers[i] = new NativeArray<Color>(renderer.chunkSize * terrain.height * renderer.chunkSize * 4, Allocator.Persistent);
         }
 
         base.Initialize(maxJobs);
@@ -60,11 +60,10 @@ class TerrainMeshRendererJobManager : JobManager<TerrainChunk.UpdateMeshJob, Tup
         job.triangles = indexBuffers[i];
         job.uv0 = uv0Buffers[i];
         job.colors = colorBuffers[i];
-        job.present = terrain.present;
-        job.type = terrain.type;
         job.materials = renderer.materialInfo;
         job.chunkX = x;
         job.chunkZ = z;
+        job.terrain = terrain.GetTerrainInfo();
         job.counts = new NativeArray<int>(1, Allocator.TempJob);
     }
 

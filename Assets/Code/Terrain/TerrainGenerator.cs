@@ -18,7 +18,6 @@ public class TerrainGenerator : MonoBehaviour
     {
         terrainRenderer = GetComponent<SG3D.TerrainRenderer>();
         terrain = new SG3D.Terrain();
-        terrainRenderer.Initialise(terrain);
     }
 
     void Start()
@@ -38,6 +37,7 @@ public class TerrainGenerator : MonoBehaviour
         terrainRenderer.tileClicked += OnTileClicked;
         terrain.tilePresentChanged += OnTilePresentChanged;
 
+        terrainRenderer.Initialise(terrain);
         terrainRenderer.CreateWorld();
         terrainRenderer.UpdateWorldMesh();
     }

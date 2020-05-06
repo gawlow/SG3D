@@ -19,7 +19,7 @@ public class TerrainChunk : MonoBehaviour
 
     MeshFilter meshFilter;
     Mesh mesh;
-    Terrain terrainData;
+    Terrain terrain;
     new TerrainRenderer renderer;
 
     MeshCollider meshCollider;
@@ -31,10 +31,10 @@ public class TerrainChunk : MonoBehaviour
         mesh = new Mesh();
     }
 
-    public void Initialise(Terrain terrainData, TerrainRenderer renderer, int x, int z, int size, int textureSize, Material material)
+    public void Initialise(Terrain terrain, TerrainRenderer renderer, int x, int z, int size, int textureSize, Material material)
     {
         this.renderer = renderer;
-        this.terrainData = terrainData;
+        this.terrain = terrain;
         this.chunkX = x;
         this.chunkZ = z;
         this.size = size;
@@ -58,10 +58,10 @@ public class TerrainChunk : MonoBehaviour
     void OnDrawGizmosSelected()
     {
         Vector3 position = transform.position;
-        position += new Vector3(size / 2 * renderer.tileSize.x, renderer.tileSize.y / 2 * terrainData.terrainHeight, size / 2 * renderer.tileSize.z);
+        position += new Vector3(size / 2 * renderer.tileSize.x, renderer.tileSize.y / 2 * terrain.height, size / 2 * renderer.tileSize.z);
 
         Gizmos.color = Color.yellow;
-        Gizmos.DrawWireCube(position, new Vector3(size * renderer.tileSize.x, terrainData.terrainHeight * renderer.tileSize.y, size * renderer.tileSize.z));
+        Gizmos.DrawWireCube(position, new Vector3(size * renderer.tileSize.x, terrain.height * renderer.tileSize.y, size * renderer.tileSize.z));
     }
 
     public struct UpdateMeshJob : IJob
@@ -78,8 +78,7 @@ public class TerrainChunk : MonoBehaviour
         public NativeArray<Vector2> uv0;
         public NativeArray<Color> colors;
         public NativeArray<int> counts;
-        [ReadOnly] public NativeArray<bool> present;
-        [ReadOnly] public NativeArray<TerrainType> type;
+        public TerrainInfo terrain;
         [ReadOnly] public NativeHashMap<int, TerrainTypeMaterialInfo> materials;
 
         public void Execute()
@@ -98,28 +97,28 @@ public class TerrainChunk : MonoBehaviour
                         Vector3Int localPosition = new Vector3Int(x, y, z);
                         Vector3Int worldPosition = chunkWorldPosition + localPosition;
 
-                        if (!Terrain.IsPresent(worldPosition, worldSize, present))
+                        if (!terrain.IsPresent(worldPosition))
                             continue;
 
-                        TerrainType tileType = Terrain.GetType(worldPosition, worldSize, type);
+                        TerrainType tileType = terrain.GetType(worldPosition);
                         TerrainTypeMaterialInfo materialInfo = materials[(int) tileType];
 
-                        if (!Terrain.IsPresent(new Vector3Int(worldPosition.x, worldPosition.y + 1, worldPosition.z), worldSize, present))
+                        if (!terrain.IsPresent(new Vector3Int(worldPosition.x, worldPosition.y + 1, worldPosition.z)))
                             index += GenerateTopWall(index, worldPosition, localPosition, materialInfo);
                         
-                        if (!Terrain.IsPresent(new Vector3Int(worldPosition.x, worldPosition.y - 1, worldPosition.z), worldSize, present))
+                        if (!terrain.IsPresent(new Vector3Int(worldPosition.x, worldPosition.y - 1, worldPosition.z)))
                             index += GenerateBottomWall(index, worldPosition, localPosition, materialInfo);
 
-                        if (!Terrain.IsPresent(new Vector3Int(worldPosition.x, worldPosition.y, worldPosition.z - 1), worldSize, present))
+                        if (!terrain.IsPresent(new Vector3Int(worldPosition.x, worldPosition.y, worldPosition.z - 1)))
                             index += GenerateSouthWall(index, worldPosition, localPosition, materialInfo);
 
-                        if (!Terrain.IsPresent(new Vector3Int(worldPosition.x, worldPosition.y, worldPosition.z + 1), worldSize, present))
+                        if (!terrain.IsPresent(new Vector3Int(worldPosition.x, worldPosition.y, worldPosition.z + 1)))
                             index += GenerateNorthWall(index, worldPosition, localPosition, materialInfo);
 
-                        if (!Terrain.IsPresent(new Vector3Int(worldPosition.x - 1, worldPosition.y, worldPosition.z), worldSize, present))
+                        if (!terrain.IsPresent(new Vector3Int(worldPosition.x - 1, worldPosition.y, worldPosition.z)))
                             index += GenerateWestWall(index, worldPosition, localPosition, materialInfo);
 
-                        if (!Terrain.IsPresent(new Vector3Int(worldPosition.x + 1, worldPosition.y, worldPosition.z), worldSize, present))
+                        if (!terrain.IsPresent(new Vector3Int(worldPosition.x + 1, worldPosition.y, worldPosition.z)))
                             index += GenerateEastWall(index, worldPosition, localPosition, materialInfo);
                     }
                 }
