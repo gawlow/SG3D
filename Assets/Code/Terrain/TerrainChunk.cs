@@ -58,10 +58,10 @@ public class TerrainChunk : MonoBehaviour
     void OnDrawGizmosSelected()
     {
         Vector3 position = transform.position;
-        position += new Vector3(size / 2 * renderer.tileWidth, renderer.tileHeight / 2 * terrainData.terrainHeight, size / 2 * renderer.tileDepth);
+        position += new Vector3(size / 2 * renderer.tileSize.x, renderer.tileSize.y / 2 * terrainData.terrainHeight, size / 2 * renderer.tileSize.z);
 
         Gizmos.color = Color.yellow;
-        Gizmos.DrawWireCube(position, new Vector3(size * renderer.tileWidth, terrainData.terrainHeight * renderer.tileHeight, size * renderer.tileDepth));
+        Gizmos.DrawWireCube(position, new Vector3(size * renderer.tileSize.x, terrainData.terrainHeight * renderer.tileSize.y, size * renderer.tileSize.z));
     }
 
     public struct UpdateMeshJob : IJob

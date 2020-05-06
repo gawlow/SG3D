@@ -22,9 +22,9 @@ public class TerrainRenderer : MonoBehaviour
 
     public event OnTileClick tileClicked;   // Called when user clicked on a tile
 
-    public float tileWidth = 1f;
-    public float tileDepth = 1f;
-    public float tileHeight = 1f;
+    public Vector3 tileSize = new Vector3(1f, 1f, 1f);
+
+    public int maxJobs = 32;
 
     public TerrainChunk terrainChunkPrefab;
     public int chunkSize = 10;
@@ -50,35 +50,22 @@ public class TerrainRenderer : MonoBehaviour
     public Material terrainMaterial;
     Material materialRuntimeCopy;
 
-    NativeHashMap<int, TerrainTypeMaterialInfo> materialInfo;
-    NativeArray<Vector3>[] vertexBuffers;
-    NativeArray<int>[] indexBuffers;
-    NativeArray<Vector2>[] uv0Buffers;
-    NativeArray<Color>[] colorBuffers;
-    TerrainChunk.UpdateMeshJob[] meshJobs;
-    Nullable<JobHandle>[] meshAvailableJobs;
-    HashSet<Tuple<int, int>> meshUpdateRequests;
-    int jobsInFlight = 0;
+    public NativeHashMap<int, TerrainTypeMaterialInfo> materialInfo;
+
+    TerrainMeshRendererJobManager meshJobManager;
 
     public void Initialise(Terrain terrainData)
     {
         this.terrainData = terrainData;
-        meshUpdateRequests = new HashSet<Tuple<int, int>>();
+        meshJobManager = new TerrainMeshRendererJobManager();
 
         PrepareTerrainMaterial();
     }
 
     void OnDestroy()
     {
-        for (int i = 0; i < maxConcurrentJobs; i++) {
-            meshJobs[i].counts.Dispose();
-            vertexBuffers[i].Dispose();
-            indexBuffers[i].Dispose();
-            uv0Buffers[i].Dispose();
-            colorBuffers[i].Dispose();
-        }
-
         materialInfo.Dispose();
+        meshJobManager.Cleanup();
     }
 
     private void PrepareTerrainMaterial()
@@ -153,21 +140,7 @@ public class TerrainRenderer : MonoBehaviour
 
     public void CreateWorld()
     {
-        vertexBuffers = new NativeArray<Vector3>[maxConcurrentJobs];
-        indexBuffers = new NativeArray<int>[maxConcurrentJobs];
-        uv0Buffers = new NativeArray<Vector2>[maxConcurrentJobs];
-        colorBuffers = new NativeArray<Color>[maxConcurrentJobs];
-        meshJobs = new TerrainChunk.UpdateMeshJob[maxConcurrentJobs];
-        meshAvailableJobs = new Nullable<JobHandle>[maxConcurrentJobs];
-
-        for (int i = 0; i < maxConcurrentJobs; i++) {
-            vertexBuffers[i] = new NativeArray<Vector3>(terrainData.terrainWidth * terrainData.terrainDepth * terrainData.terrainHeight * 4, Allocator.Persistent);
-            indexBuffers[i] = new NativeArray<int>(terrainData.terrainWidth * terrainData.terrainDepth * terrainData.terrainHeight * 6, Allocator.Persistent);
-            uv0Buffers[i] = new NativeArray<Vector2>(terrainData.terrainWidth * terrainData.terrainDepth * terrainData.terrainHeight * 4, Allocator.Persistent);
-            colorBuffers[i] = new NativeArray<Color>(terrainData.terrainWidth * terrainData.terrainDepth * terrainData.terrainHeight * 4, Allocator.Persistent);
-            meshJobs[i] = new TerrainChunk.UpdateMeshJob();
-            meshJobs[i].counts = new NativeArray<int>(1, Allocator.Persistent);
-        }
+        meshJobManager.Initialize(maxJobs, terrainData, this);
 
         // Because map can be really large, generating a single mesh is a no-go, as updates to it would take too
         // much time. So we divide world into equaly sized chunks, slicing the world along the X and Z coordinates 
@@ -180,7 +153,7 @@ public class TerrainRenderer : MonoBehaviour
         for (int x = 0; x < width; x++) {
             for (int z = 0; z < depth; z++) {
                 TerrainChunk chunk = Instantiate<TerrainChunk>(terrainChunkPrefab, this.transform);
-                chunk.transform.localPosition = new Vector3(x * chunkSize * tileWidth, 0f, z * chunkSize * tileDepth);
+                chunk.transform.localPosition = new Vector3(x * chunkSize * tileSize.x, 0f, z * chunkSize * tileSize.z);
                 chunk.transform.localRotation = Quaternion.identity;
                 chunk.name = $"Chunk X: {x * chunkSize} Z:{z * chunkSize}, size: {chunkSize}";
                 chunk.Initialise(terrainData, this, x, z, chunkSize, chunkTextureSize, materialRuntimeCopy);
@@ -202,88 +175,11 @@ public class TerrainRenderer : MonoBehaviour
 
     private void ScheduleChunkUpdate(int x, int z)
     {
-        meshUpdateRequests.Add(new Tuple<int, int>(x, z));
-        if (jobsInFlight > 0)
-            TryCompleteJobs();
-
-        TryScheduleUpdates();
+        meshJobManager.ScheduleJob(new Tuple<int, int>(x, z));
     }
     private void ScheduleChunkUpdateForTile(Vector3Int tile)
     {
         ScheduleChunkUpdate(tile.x / chunkSize, tile.z / chunkSize);
-    }
-
-    private void TryScheduleUpdates()
-    {
-        HashSet<Tuple<int, int>> toRemove = new HashSet<Tuple<int, int>>();
-
-        if (jobsInFlight == maxConcurrentJobs)
-            return;
-
-        foreach (var chunk in meshUpdateRequests) {
-            int freeJob = FindFreeJob();
-            if (freeJob == -1)
-                break;
-            
-            StartJob(chunk.Item1, chunk.Item2, freeJob);
-            toRemove.Add(chunk);
-        }
-
-        foreach (var chunk in toRemove) {
-            meshUpdateRequests.Remove(chunk);
-        }
-    }
-
-    private void TryCompleteJobs()
-    {
-        for (int i = 0; i < maxConcurrentJobs; i++) {
-            if (meshAvailableJobs[i].HasValue) {
-                JobHandle jobHandle = meshAvailableJobs[i].Value;
-                if (jobHandle.IsCompleted) {
-                    jobHandle.Complete();
-
-                    TerrainChunk.UpdateMeshJob job = meshJobs[i];
-                    chunks[job.chunkX, job.chunkZ].UpdateMesh(job.counts[0], job.vertices, job.triangles, job.uv0, job.colors);
-                    meshAvailableJobs[i] = null;
-                    jobsInFlight--;
-                }
-            }
-        }
-    }
-
-    private int FindFreeJob()
-    {
-        for (int i = 0; i < maxConcurrentJobs; i++) {
-            if (!meshAvailableJobs[i].HasValue)
-                return i;
-        }
-
-        return -1;
-    }
-
-    private void StartJob(int x, int z, int jobIndex)
-    {
-        TerrainChunk.UpdateMeshJob job = meshJobs[jobIndex];
-        job.worldSize = terrainData.GetWorldSize();
-        job.tileSize = new Vector3(tileWidth, tileHeight, tileDepth);
-        job.chunkWorldPosition = new Vector3Int(x * chunkSize, 0 * chunkSize, z * chunkSize);
-        job.chunkSize = chunkSize;
-        job.textureSize = chunkTextureSize;
-        job.vertices = vertexBuffers[jobIndex];
-        job.triangles = indexBuffers[jobIndex];
-        job.uv0 = uv0Buffers[jobIndex];
-        job.colors = colorBuffers[jobIndex];
-        job.present = terrainData.present;
-        job.type = terrainData.type;
-        job.materials = materialInfo;
-        job.chunkX = x;
-        job.chunkZ = z;
-        job.counts[0] = 0;
-
-        // Remember its an struct, so need to explicitly save it
-        meshJobs[jobIndex] = job;
-        meshAvailableJobs[jobIndex] = meshJobs[jobIndex].Schedule();
-        jobsInFlight++;
     }
 
     // Updates mesh for chunk containing given tile
@@ -308,6 +204,11 @@ public class TerrainRenderer : MonoBehaviour
         }
     }
 
+    public TerrainChunk GetChunk(int x, int z)
+    {
+        return chunks[x, z];
+    }
+
     public TerrainTypeMaterialInfo GetMaterialInfo(TerrainType type)
     {
         return materialInfo[(int) type];
@@ -321,9 +222,9 @@ public class TerrainRenderer : MonoBehaviour
     private Vector3Int WorldToTileCoordinates(Vector3 tile)
     {
         Vector3Int result = new Vector3Int(
-            Mathf.FloorToInt(Mathf.Clamp(tile.x, 0f, terrainData.terrainWidth * tileWidth) / tileWidth),
-            Mathf.FloorToInt(Mathf.Clamp(tile.y, 0f, terrainData.terrainHeight * tileHeight) / tileHeight),
-            Mathf.FloorToInt(Mathf.Clamp(tile.z, 0f, terrainData.terrainDepth * tileDepth) / tileDepth)
+            Mathf.FloorToInt(Mathf.Clamp(tile.x, 0f, terrainData.terrainWidth * tileSize.x) / tileSize.x),
+            Mathf.FloorToInt(Mathf.Clamp(tile.y, 0f, terrainData.terrainHeight * tileSize.y) / tileSize.y),
+            Mathf.FloorToInt(Mathf.Clamp(tile.z, 0f, terrainData.terrainDepth * tileSize.z) / tileSize.z)
         );
 
         return result;
@@ -331,11 +232,7 @@ public class TerrainRenderer : MonoBehaviour
 
     void Update()
     {
-        if (jobsInFlight > 0)
-            TryCompleteJobs();
-
-        if (meshUpdateRequests.Count > 0)
-            TryScheduleUpdates();
+        meshJobManager.CompleteAndRun();
 
         // Detection of clicking on tiles
         if (Input.GetMouseButtonDown(0)) {
@@ -377,11 +274,7 @@ public class TerrainRenderer : MonoBehaviour
 
     void LateUpdate()
     {
-        if (jobsInFlight > 0)
-            TryCompleteJobs();
-
-        if (meshUpdateRequests.Count > 0)
-            TryScheduleUpdates();        
+        meshJobManager.CompleteAndRun();
     }
 }
 
