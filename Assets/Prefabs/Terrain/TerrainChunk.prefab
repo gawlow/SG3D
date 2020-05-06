@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 7323657082605681422}
   - component: {fileID: 703746219600566930}
   - component: {fileID: 5877805955863902404}
-  - component: {fileID: 7822854042352796406}
+  - component: {fileID: 7454095392859541237}
   m_Layer: 0
   m_Name: TerrainChunk
   m_TagString: Untagged
@@ -50,6 +50,7 @@ MonoBehaviour:
   chunkZ: 0
   size: 0
   textureSize: 0
+  mesh: {fileID: 0}
 --- !u!33 &703746219600566930
 MeshFilter:
   m_ObjectHideFlags: 0
@@ -97,7 +98,7 @@ MeshRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
---- !u!64 &7822854042352796406
+--- !u!64 &7454095392859541237
 MeshCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -109,5 +110,5 @@ MeshCollider:
   m_Enabled: 1
   serializedVersion: 4
   m_Convex: 0
-  m_CookingOptions: -1
+  m_CookingOptions: 30
   m_Mesh: {fileID: 0}
